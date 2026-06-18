@@ -25,8 +25,13 @@ lvgl-ui-generator/
     ├── icon-display-guide.md            ← 62 LV_SYMBOL + FA6 两级方案
     ├── screen-navigation.md             ← 栈/Tab/生命周期/动画
     ├── multi-dpi-guide.md               ← lv_pct/lv_dpx/Grid FR/断点
+    ├── preview-workflow.md              ← PC 预览工作流
     └── common-errors.md                 ← 16 条实战错误速查
-```
+
+preview/                                 ← 🆕 一键 SDL 预览工程
+    ├── setup.ps1 / setup.sh            ← 环境自动配置
+    ├── CMakeLists.txt                   ← 最小构建
+    └── main.c                           ← 模板入口
 
 ## 设计理念
 
