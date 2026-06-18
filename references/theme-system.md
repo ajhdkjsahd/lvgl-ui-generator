@@ -93,15 +93,12 @@ lv_obj_set_style_bg_color(btn2, lv_color_hex(0x2196F3), LV_PART_MAIN);
 ### 运行时切换
 
 ```c
-static lv_theme_t * current_theme = NULL;
 static bool is_dark = true;
 
 void theme_set_dark(bool dark) {
-    if (current_theme) {
-        lv_theme_delete(current_theme);
-    }
     is_dark = dark;
-    current_theme = lv_theme_default_init(lv_display_get_default(),
+    /* ⚠️ 不要调用 lv_theme_delete() — 已有控件仍引用旧主题样式，会导致崩溃 */
+    lv_theme_default_init(lv_display_get_default(),
         lv_palette_main(LV_PALETTE_BLUE),
         lv_palette_main(LV_PALETTE_GREY),
         dark,  /* true=深色 false=浅色 */
