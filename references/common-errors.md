@@ -26,3 +26,6 @@
 | **单个图标缺失（方框）** | 图标码位没加入 `--symbols` 列表 | `lv_font_conv` 只导出 --symbols 列出的码位，遗漏的需补入后重生成 |
 | **Grid 子控件位置异常** | `lv_obj_set_grid_cell` 设在了孙控件上，而非 grid 的直接子对象 | grid cell 的 target 必须是 grid 容器的**直接子对象** |
 | **透明行拦截按钮点击** 🔥 | `create_inline_row` 未清除 `LV_OBJ_FLAG_CLICKABLE` | 工厂函数加 `lv_obj_clear_flag(row, LV_OBJ_FLAG_CLICKABLE)` |
+| **°C 摄氏度显示方框** 🔥 | `°` (U+00B0) 不在 ASCII `-r 0x20-0x7F` 范围内 | 加 `-r 0x0080-0x00FF`（Latin-1 Supplement） |
+| **AI 对话 ✓ 等符号缺失** | 装饰符号不在 CJK 范围内 | 加 `-r 0x2000-0x27BF`（General Punctuation + Dingbats） |
+| **全量汉字编译报错** | 字体超过 256KB 需开启 Large Font 支持 | `lv_conf.h` 设 `LV_FONT_FMT_TXT_LARGE 1` |

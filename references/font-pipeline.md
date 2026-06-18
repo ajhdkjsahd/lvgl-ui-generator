@@ -59,16 +59,41 @@ for name, info in data.items():
 "
 ```
 
+### Step 1.5: Unicode 范围速查（防止缺字）
+
+`-r` 参数可堆叠任意多个范围，覆盖不同语言区块：
+
+```bash
+lv_font_conv --font YourFont.otf \
+  -r 0x20-0x7F \       # ASCII（数字、字母、标点）
+  -r 0x0080-0x00FF \   # Latin-1（° ± × ÷ 等）
+  -r 0x2000-0x27BF \   # 标点 + 箭头 + 数学 + 装饰（✓ ✗ • → ≤ ∑）
+  -r 0x3000-0x303F \   # CJK 标点（。、「」）
+  -r 0xFF00-0xFFEF \   # 全角字符
+  -r 0x4E00-0x9FFF \   # CJK 统一汉字（全部常用汉字 ~21k）
+  ...
+```
+
+| 常见缺字 | 码位 | 修复 |
+|----------|------|------|
+| 摄氏度 ° | U+00B0 | `-r 0x0080-0x00FF` |
+| 对勾 ✓ 叉号 ✗ | U+2713/2717 | `-r 0x2000-0x27BF` |
+| 中文句号 。 | U+3002 | `-r 0x3000-0x303F` |
+| AI 对话的任意汉字 | U+4E00 起 | `-r 0x4E00-0x9FFF` |
+
+> ⚠️ **全量汉字 ~21k 字符，16px≈18MB，24px≈1MB。需在 lv_conf.h 启用 `LV_FONT_FMT_TXT_LARGE 1`**
+
 ### Step 2: 生成合并字体
 
 `lv_font_conv` 支持多 `--font` 源，每个源指定各自的 `--symbols` / `-r` 范围：
 
 ```bash
 lv_font_conv \
-  --font SourceHanSansSC-Normal.otf -r 0x20-0x7F --symbols "$CJK_CHARS" \
+  --font SourceHanSansSC-Normal.otf -r 0x20-0x7F -r 0x0080-0x00FF \
+     -r 0x2000-0x27BF -r 0x3000-0x303F -r 0xFF00-0xFFEF -r 0x4E00-0x9FFF \
   --font FA6-Free-Solid-900.otf --symbols "$FA6_ICONS" \
   --size 24 --bpp 4 --format lvgl --no-compress \
-  --lv-include "lvgl/lvgl.h" \
+  --lv-include lvgl/lvgl.h \
   --lv-font-name "lv_font_weather_24" \
   -o src/ui/fonts/weather_24.c
 ```
