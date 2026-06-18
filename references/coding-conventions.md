@@ -159,7 +159,22 @@ lv_timer_t * timer = lv_timer_create(timer_cb, 1000, NULL);
 
 ## 4. 样式最佳实践
 
-### 复用样式
+### 优先使用主题系统（新增）
+
+用 `lv_theme_default_init` 建立全局风格，仅对差异化需求使用内联样式。详见 `references/theme-system.md`。
+
+```c
+// ✅ 最佳：主题统一风格 + 少量覆盖
+lv_theme_default_init(disp,
+    lv_palette_main(LV_PALETTE_BLUE),
+    lv_palette_main(LV_PALETTE_GREY),
+    LV_THEME_DEFAULT_DARK, &lv_font_app_16);
+
+lv_obj_set_style_text_font(title, &lv_font_app_24, 0);  // 只有标题加字号
+```
+
+### 主题不可用时：复用样式
+
 ```c
 // ✅ 好：一个样式多次使用
 static lv_style_t style_card;
