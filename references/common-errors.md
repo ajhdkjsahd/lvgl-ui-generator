@@ -20,3 +20,9 @@
 | **windows npx/unc 路径报错** | WSL 1 无法直接调用 Windows 的 node.exe | 用 PowerShell 中转（见 font-pipeline.md WSL 1 说明） |
 | **点击无响应** 🔥 | 透明容器拦截了点击（见 memory: LVGL 按钮点击失灵根因分析） | 检查父容器是否设置了 `LV_OBJ_FLAG_CLICKABLE`；或设置 `LV_OBJ_FLAG_EVENT_BUBBLE` |
 | **Flex 布局位置为 0** 🔥 | flex 子控件在 build 阶段坐标未就绪（见 memory: LVGL Flex 布局坐标未就绪） | 不要在 `create` 函数中立即读取坐标，在 `LV_EVENT_SCREEN_LOADED` 中读取 |
+| **深色主题不生效** 🔥 | `LV_THEME_DEFAULT_DARK` 是 lv_conf 宏（默认 0=浅色），不等于 `true` | 直接传 `true`（深色）或 `false`（浅色） |
+| **主题切换第二次崩溃** 🔥 | `lv_theme_delete()` 释放了控件仍在引用的样式 | 直接调用 `lv_theme_default_init` 切换，**不要**先 delete |
+| **FA6 蓝牙等图标不显示** 🔥 | 对应的 FA6 图标是 Brands 风格，不在 Free Solid 字体内 | 查 `icons.json` 确认 styles，或用 Solid 中语义相近的图标代替 |
+| **单个图标缺失（方框）** | 图标码位没加入 `--symbols` 列表 | `lv_font_conv` 只导出 --symbols 列出的码位，遗漏的需补入后重生成 |
+| **Grid 子控件位置异常** | `lv_obj_set_grid_cell` 设在了孙控件上，而非 grid 的直接子对象 | grid cell 的 target 必须是 grid 容器的**直接子对象** |
+| **透明行拦截按钮点击** 🔥 | `create_inline_row` 未清除 `LV_OBJ_FLAG_CLICKABLE` | 工厂函数加 `lv_obj_clear_flag(row, LV_OBJ_FLAG_CLICKABLE)` |

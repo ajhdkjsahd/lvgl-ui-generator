@@ -5,9 +5,9 @@ description: "Design and generate LVGL v9 UI code (any platform: embedded Linux,
 
 # LVGL UI Code Generator
 
-为嵌入式 Linux (ARM/Cross-compile) 生成 LVGL v9 UI 代码。
+为所有 LVGL v9 平台生成 UI 代码（嵌入式 Linux / ESP32 / PC 模拟器等）。
 
-**适用平台**: LVGL v9 + fbdev/evdev 嵌入式 Linux（ARM 交叉编译）
+**适用平台**: LVGL v9 + 任意 HAL（SDL / fbdev / evdev / esp_lcd 等）
 
 ---
 
@@ -162,6 +162,7 @@ ssh root@<板子IP> ./lvglsim
 | `references/flex-grid-guide.md` | Flex vs Grid 选择指南 + 决策树 |
 | `references/interaction-patterns.md` | snprintf 模板 + 事件回调 + 状态管理 + Toast |
 | `references/icon-display-guide.md` | LV_SYMBOL 速查 + 中文分离规则 + Dropdown 修复 |
+| `references/screen-navigation.md` | 屏幕导航：栈式 push/pop + TabView + 生命周期 + 切换动画 |
 | `references/multi-dpi-guide.md` | 多分辨率适配：lv_dpx / lv_pct / Flex grow / Grid FR / 字号缩放 / 分辨率分支 |
 | `references/component-reuse.md` | 组件复用三层模式：工厂函数 / 复合组件(ctx) / 自包含Widget(生命周期) |
 | `references/animation-guide.md` | 动画实用模式：淡入淡出/滑入/弹入/计数器/逐项入场 + 缓动选择 |
