@@ -81,6 +81,7 @@ lv_obj_t * create_inline_row(lv_obj_t * parent, lv_coord_t w, lv_coord_t h)
     lv_obj_set_style_pad_all(row, 0, 0);
     lv_obj_set_scrollbar_mode(row, LV_SCROLLBAR_MODE_OFF);
     lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(row, LV_OBJ_FLAG_CLICKABLE);  /* 行容器不拦截点击, 让事件穿透到父对象 */
     return row;
 }
 ```
@@ -542,6 +543,9 @@ ssh root@<板子IP> ./lvglsim
 |------|------|----------|
 | `lv_btn_create` (v8) | API 过时 | `lv_button_create` |
 | `lv_scr_act()` (v8) | API 过时 | `lv_screen_active()` |
+| **`error: expected expression` 在回调函数定义处** 🔥 | 用了 C++ lambda `[](lv_event_t *e) { ... }`，C 语言不支持 lambda | 全部改为 `static void on_xxx(lv_event_t *e)` 命名函数，在文件顶部声明 prototype |
+| **`error: initializer element is not constant`** 🔥 | `lv_color_hex(0x...)` 不是编译期常量（是函数调用），不能用于 `static const lv_color_t arr[N]` 的初始化 | 改为运行时赋值：`static lv_color_t arr[N]; arr[0]=COL_X; arr[1]=COL_Y;` |
+| **`error: too many arguments to function 'lv_obj_set_size'`** 🔥 | `lv_obj_set_size(obj, w, h, LV_PART_KNOB)` 传了第4个参数，但该函数只接受 3 个参数（obj, w, h），不支持按 part 设置尺寸 | 用 `lv_obj_set_style_width(obj, w, LV_PART_KNOB)` + `lv_obj_set_style_height(obj, h, LV_PART_KNOB)` 分开设置 |
 | 中文乱码/缺字 | 字库里没这个字 | 重跑 Python 扫描 → chars.txt → lv_font_conv 重新生成 |
 | 字体不显示+控件乱跳 | 缺少 `--no-compress` | lv_font_conv 命令必须加 `--no-compress` |
 | 字体/页面散落根目录 | 目录不规范 | 统一放进 `src/ui/{fonts,pages}/` |
@@ -554,6 +558,256 @@ ssh root@<板子IP> ./lvglsim
 | **charmap 字体总大小 0** | 只改了 chars.txt 没重新生成字体 .c 文件 | cmake 只负责**编译**，不负责**生成**字体 — 必须先 `lv_font_conv` 再 cmake |
 | **Grid 卡片内描述太长** | 单行文字超过卡片宽度导致截断 | 用 `\n` 拆成两行，`LV_LABEL_LONG_CLIP` 模式下 `\n` 依然生效 |
 | **windows npx/unc 路径报错** | WSL 1 无法直接调用 Windows 的 node.exe（路径转换问题） | 用 PowerShell 中转（见上方 Step B 的 WSL 1 说明） |
+| **按钮中部点击无反应，只有边缘一小块能点** 🔥 | 按钮和 label 之间夹了 `create_inline_row` 容器；`lv_label` 构造时移除 CLICKABLE 但 `lv_obj` 保留 CLICKABLE，中间容器拦截点击且 EVENT_BUBBLE 未开启无法冒泡到按钮 | ① `create_inline_row` **必须**加 `lv_obj_clear_flag(row, LV_OBJ_FLAG_CLICKABLE)` ② label 必须是按钮的**直接子对象**，中间不要夹容器 |
+| **Flex 布局导致底部 Tab 栏被裁切/不显示** | 顶层屏幕用 flex 布局时，子控件布局在首个 `lv_timer_handler()` 完成后才生效，`build` 阶段 `lv_obj_get_width/height` 返回 0 | 顶层屏幕用绝对定位：`lv_obj_set_pos(top_bar, 0, 0); lv_obj_set_pos(content, 0, 30); lv_obj_set_pos(tab_bar, 0, 284)`，不用 flex |
+| **按钮的 label 同时包含图标和中文，中文显示方框** | `LV_SYMBOL_*` 的码位在 Montserrat 字体私有区，和中文字体不互通 | 图标 label（`lv_font_montserrat_*`）和中文 label（自定义字体）拆成两个独立 label，用 `create_inline_row` 包裹 |
+
+---
+
+## 🔴 深度教训：按钮点击失灵（LVGL v9 命中测试机制）
+
+### 现象
+
+按钮中部点击无任何反应，只有边缘 2-3px 的区域能触发 `LV_EVENT_CLICKED`。
+
+### 完整的命中测试链路
+
+LVGL v9 通过 `lv_indev_search_obj` 递归搜索目标对象，规则是**最深优先（depth-first, last-child-first）**：
+
+```
+lv_indev_search_obj(obj, point):
+  1. 检查 point 是否在 obj->coords 范围内
+  2. 如果在 → 递归搜索所有子对象（从最后一个子对象向前遍历）
+  3. 如果某个子对象命中 → 立即返回该子对象（不再查找）
+  4. 如果没有子对象命中 → 检查 obj 自己的 lv_obj_hit_test()
+     → 检查 LV_OBJ_FLAG_CLICKABLE
+     → 检查 point 是否在 lv_obj_get_click_area() 内
+     → 如果通过 → 返回 obj，否则返回 NULL
+```
+
+### 关键事实
+
+| 对象类型 | `LV_OBJ_FLAG_CLICKABLE` 默认值 | 说明 |
+|----------|-------------------------------|------|
+| `lv_obj` (普通) | **ON** | 所有对象默认可点击 |
+| `lv_label` | **OFF** (构造时移除) | `lv_label.c:789` `lv_obj_remove_flag(obj, LV_OBJ_FLAG_CLICKABLE)` |
+| `lv_button` | **ON** | 继承自 `lv_obj` |
+
+### 事件冒泡规则 (`event_is_bubbled`)
+
+- `LV_EVENT_CLICKED` **默认不冒泡**
+- 只有设置了 `LV_OBJ_FLAG_EVENT_BUBBLE` 的对象才会将 CLICKED 向上传递
+- `lv_obj` 和 `lv_label` **默认都不设此 flag**
+
+### 为什么会失灵
+
+当按钮结构是 `button → inner_row(create_inline_row) → icon_label + text_label` 时：
+
+```
+点击按钮中部
+  → lv_indev_search_obj 先找到 text_label
+    → lv_label::hit_test → CLICKABLE=OFF → 穿透 ✗
+  → 再找 icon_label
+    → lv_label::hit_test → CLICKABLE=OFF → 穿透 ✗
+  → 两个 label 都没命中 → 回到 inner_row
+    → lv_obj::hit_test → CLICKABLE=ON → 命中！✓
+  → indev_obj_act = inner_row
+  → LV_EVENT_CLICKED 发给 inner_row
+    → inner_row 没 EVENT_BUBBLE → 事件死在这里 ✗
+    → button 的 on_tab_click 永远不会被调用 ✗
+```
+
+只有点击按钮边缘、inner_row 未覆盖的 2-3px 区域时，搜索直接命中 button 本身，事件才正常工作。
+
+### 为什么 DC/步进页面的按钮正常
+
+那些按钮的结构是 `button → label`（label 是 button 的**直接子对象**）：
+
+```
+点击按钮
+  → lv_indev_search_obj 先找 label
+    → lv_label::hit_test → CLICKABLE=OFF → 穿透 ✗
+  → label 没命中 → 回到 button
+    → lv_button::hit_test → CLICKABLE=ON → 命中！✓
+  → indev_obj_act = button
+  → button 的 handler 被正确调用 ✓
+```
+
+### 修复方案
+
+**方案一（推荐）**：在 `create_inline_row` 工厂函数中清除 CLICKABLE：
+
+```c
+lv_obj_clear_flag(row, LV_OBJ_FLAG_CLICKABLE);  // 行容器不拦截点击
+```
+
+**方案二**：让 label 成为 button 的直接子对象，不要在中间夹容器。
+
+**方案三**：给中间容器加 EVENT_BUBBLE：
+```c
+lv_obj_add_flag(inner, LV_OBJ_FLAG_EVENT_BUBBLE);
+```
+⚠️ 不推荐：这会让所有事件都冒泡，可能引发意外副作用。
+
+### 最佳实践
+
+```c
+// ✅ 正确：label 是 button 的直接子对象
+lv_obj_t *btn = lv_button_create(parent);
+lv_obj_t *lbl = lv_label_create(btn);   // 直接子对象
+lv_label_set_text(lbl, "点击我");
+
+// ✅ 正确：如果必须用容器，清 CLICKABLE
+lv_obj_t *btn = lv_button_create(parent);
+lv_obj_t *inner = create_inline_row(btn, 64, 20);  // 已含 clear CLICKABLE
+lv_obj_t *icon = lv_label_create(inner);
+lv_obj_t *text = lv_label_create(inner);
+
+// ❌ 错误：容器在 button 和 label 之间，且未清 CLICKABLE
+lv_obj_t *btn = lv_button_create(parent);
+lv_obj_t *inner = lv_obj_create(btn);   // CLICKABLE=ON，会拦截点击！
+lv_obj_t *lbl = lv_label_create(inner);
+```
+
+---
+
+## 🔴 深度教训：Flex 布局导致控件位置/尺寸异常
+
+### 现象
+
+用 flex 布局的顶层屏幕，底部 tab 栏或控件在 `build` 阶段 `lv_obj_get_width/height` 返回 0，位置错乱或被裁切。
+
+### 根因
+
+LVGL v9 的布局更新在 `lv_timer_handler()` 循环中异步执行。控件创建和 `lv_obj_set_size` 只设置**样式值**，不立即更新 `obj->coords`。`obj->coords` 在 `lv_obj_refr_size()` 中更新，发生在 `lv_timer_handler()` → 布局更新流程中。
+
+```c
+// build 阶段（lv_timer_handler 还没跑）
+lv_obj_t *bar = create_tab_bar(parent);  // lv_obj_set_size(bar, 240, 36)
+lv_obj_get_width(bar);   // → 0！（coords 还没更新）
+lv_obj_get_height(bar);  // → 0！（coords 还没更新）
+```
+
+### 修复方案
+
+顶层屏幕使用**绝对定位**，不用 flex 布局：
+
+```c
+lv_obj_t *scr = lv_obj_create(NULL);
+lv_obj_set_size(scr, 240, 320);
+// 不设 flex_flow，手动 set_pos
+
+g_motor.top_bar = build_top_bar(scr);
+lv_obj_set_pos(g_motor.top_bar, 0, 0);     // y=0, h=30
+
+g_motor.content = lv_obj_create(scr);
+lv_obj_set_size(g_motor.content, 240, 254);
+lv_obj_set_pos(g_motor.content, 0, 30);     // y=30, h=254
+
+g_motor.tab_bar = build_tab_bar(scr);
+lv_obj_set_pos(g_motor.tab_bar, 0, 284);    // y=284, h=36
+// 0+30+254+36 = 320 ✓ 像素严格分配，无重叠无间隙
+```
+
+### 什么时候该用 Flex
+
+Flex 仍然适合**子容器内部**的布局（按钮栏、卡片内行、标题行等）。规则：**顶层屏幕用绝对定位，子容器内用 flex**。
+
+---
+
+## 🔴 深度教训：C 语言编译陷阱（LVGL 示例 vs C 项目实战）
+
+LVGL 官网文档和 demo 大量使用 C++ 特性（lambda、constexpr 等），在纯 C 项目中直接照搬会导致编译失败。
+
+### 陷阱 1：Lambda 表达式（C 不支持）
+
+**错误代码（照搬 LVGL 文档）：**
+```c
+lv_obj_add_event_cb(btn, [](lv_event_t *e) {
+    LV_LOG_USER("clicked");
+}, LV_EVENT_CLICKED, NULL);
+```
+**编译器报错**: `error: expected expression`
+
+**C 语言正确写法**：
+```c
+// 文件开头声明
+static void on_btn_click(lv_event_t *e);
+
+// 创建时注册
+lv_obj_add_event_cb(btn, on_btn_click, LV_EVENT_CLICKED, (void *)(uintptr_t)idx);
+
+// 文件末尾实现
+static void on_btn_click(lv_event_t *e)
+{
+    uintptr_t idx = (uintptr_t)lv_event_get_user_data(e);
+    LV_LOG_USER("按钮 %lu 被点击", (unsigned long)idx);
+}
+```
+
+**规范**：
+- 所有回调必须是 `static` 命名函数
+- 函数声明在文件顶部 `STATIC PROTOTYPES` 区域
+- 用 `(void *)(uintptr_t)idx` 传递整数参数
+
+### 陷阱 2：`lv_color_hex()` 不是编译期常量
+
+**错误代码**：
+```c
+static const lv_color_t accents[4] = {
+    lv_color_hex(0x00E5FF),  // COL_CYAN
+    lv_color_hex(0xFF1744),  // COL_STOP
+    // ...
+};
+```
+**编译器报错**: `error: initializer element is not constant`
+
+**C 语言正确写法**：
+```c
+// 方案 A：运行时赋值（推荐）
+static lv_color_t accents[4];
+accents[0] = COL_CYAN;
+accents[1] = COL_STOP;
+accents[2] = COL_CYAN;
+accents[3] = COL_BORDER;
+
+// 方案 B：用宏（如果已经是宏定义的）
+#define COL_CYAN  lv_color_hex(0x00E5FF)
+// 但 lv_color_hex 内部是函数调用，宏展开后同理
+// 结论：C 中不要用 static const lv_color_t arr[] = {...lv_color_hex...}
+```
+
+### 陷阱 3：`lv_obj_set_size()` 只接受 3 个参数
+
+**错误代码（照搬某些 v9 迁移指南）**：
+```c
+lv_obj_set_size(slider, 8, 16, LV_PART_KNOB);  // 想设置 knob 尺寸
+```
+**编译器报错**: `error: too many arguments to function 'lv_obj_set_size'`
+
+**C 语言正确写法**：
+```c
+// lv_obj_set_size 只能设置对象整体尺寸，不支持按 part
+lv_obj_set_size(slider, 232, 16);                           // 整体
+lv_obj_set_style_width(slider, 8, LV_PART_KNOB);            // knob 宽度
+lv_obj_set_style_height(slider, 16, LV_PART_KNOB);          // knob 高度
+```
+
+### C vs C++ 速查表
+
+| 写法 | C 编译器 | 说明 |
+|------|---------|------|
+| `[](lv_event_t *e) { ... }` | ❌ 编译失败 | C 不支持 lambda |
+| `static void cb(lv_event_t *e)` | ✅ | 命名函数 |
+| `static const lv_color_t x = lv_color_hex(0x...)` | ❌ 编译失败 | 不是编译期常量 |
+| `static lv_color_t x; x = lv_color_hex(0x...);` | ✅ | 运行时赋值 |
+| `lv_obj_set_size(obj, w, h, part)` | ❌ 编译失败 | 参数过多 |
+| `lv_obj_set_style_width/height(obj, v, part)` | ✅ | 按 part 设置尺寸 |
+| `lv_obj_set_style_*(obj, ...)` | ✅ | v9 推荐写法 |
+
+### 为什么会踩坑
+
+LVGL 官方文档和 PC 模拟器示例代码常以 **C++** 编译（`.cpp` 文件），而嵌入式项目通常用 **C** 编译（`.c` 文件）。两者的语法差异在编译时才会暴露。**所有生成的 `.c` 文件必须用纯 C 语法，不可包含任何 C++ 特性。**
 
 ---
 
