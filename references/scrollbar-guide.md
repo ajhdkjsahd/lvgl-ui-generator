@@ -84,6 +84,7 @@ lv_obj_t * create_inline_row(lv_obj_t * parent, lv_coord_t w, lv_coord_t h)
     lv_obj_set_style_pad_all(row, 0, 0);
     lv_obj_set_scrollbar_mode(row, LV_SCROLLBAR_MODE_OFF);
     lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(row, LV_OBJ_FLAG_CLICKABLE);  /* 透明行不拦截点击 */
     return row;
 }
 ```

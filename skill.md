@@ -163,4 +163,5 @@ ssh root@<板子IP> ./lvglsim
 | `references/interaction-patterns.md` | snprintf 模板 + 事件回调 + 状态管理 + Toast |
 | `references/icon-display-guide.md` | LV_SYMBOL 速查 + 中文分离规则 + Dropdown 修复 |
 | `references/multi-dpi-guide.md` | 多分辨率适配：lv_dpx / lv_pct / Flex grow / Grid FR / 字号缩放 / 分辨率分支 |
+| `references/component-reuse.md` | 组件复用三层模式：工厂函数 / 复合组件(ctx) / 自包含Widget(生命周期) |
 | `references/common-errors.md` | 16 条实战错误速查（现象 → 根因 → 修复） |

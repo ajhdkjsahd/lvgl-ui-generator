@@ -90,18 +90,64 @@ lv_obj_set_style_bg_color(btn2, lv_color_hex(0x2196F3), LV_PART_MAIN);
 
 ## 深色/浅色主题切换
 
+### 运行时切换
+
 ```c
 static lv_theme_t * current_theme = NULL;
+static bool is_dark = true;
 
-void switch_theme(bool dark) {
+void theme_set_dark(bool dark) {
     if (current_theme) {
         lv_theme_delete(current_theme);
     }
+    is_dark = dark;
     current_theme = lv_theme_default_init(lv_display_get_default(),
         lv_palette_main(LV_PALETTE_BLUE),
         lv_palette_main(LV_PALETTE_GREY),
-        dark ? LV_THEME_DEFAULT_DARK : LV_THEME_DEFAULT_LIGHT,
+        dark,  /* true=深色 false=浅色 */
         &lv_font_app_16);
+}
+
+void theme_toggle(void) {
+    theme_set_dark(!is_dark);
+}
+```
+
+切换后**所有已有控件**会自动应用新主题样式——不需要手动刷新。
+
+### 切换时的注意事项
+
+1. **内联样式会覆盖主题**：用 `lv_obj_set_style_*` 手动设置过的属性不会随主题切换而改变。如果需要可切换，用主题而非内联：
+
+```c
+// ❌ 内联样式 — 主题切换不会改变它
+lv_obj_set_style_bg_color(card, lv_color_hex(0x333333), LV_PART_MAIN);
+
+// ✅ 不用内联 — 让主题控制背景色
+// card 的背景色由主题自动管理，切换深色/浅色时跟着变
+```
+
+2. **自定义颜色可以用两套调色板**：
+
+```c
+void theme_set_dark(bool dark) {
+    // ...
+    current_theme = lv_theme_default_init(disp,
+        lv_palette_main(LV_PALETTE_BLUE),
+        lv_palette_main(LV_PALETTE_GREY),
+        dark, &lv_font_app_16);
+}
+// 深色模式自动用深色背景+浅色文字，浅色反之——无需手动改颜色
+```
+
+3. **切换按钮的典型实现**：
+
+```c
+static void on_theme_btn_click(lv_event_t * e) {
+    theme_toggle();
+    lv_obj_t * btn = lv_event_get_target(e);
+    lv_obj_t * label = lv_obj_get_child(btn, 0);
+    lv_label_set_text(label, is_dark ? "🌙 深色" : "☀ 浅色");
 }
 ```
 
