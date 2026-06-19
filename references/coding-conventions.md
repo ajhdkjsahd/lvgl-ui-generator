@@ -403,7 +403,59 @@ static void show_toast(const char * msg) {
 
 ---
 
-## 11. 项目特定信息
+## 11. 嵌入式性能约束（MCU 手表必读）
+
+### 动画限制
+
+```c
+// ❌ MCU 上同时跑 5+ 个动画 → 掉帧
+// ✅ 同时动画数 ≤ 3
+//    例如：秒针平滑动画(1) + 步数数字滚动(1) + 通知淡入(1)
+```
+
+### 静态背景优化
+
+```c
+// ✅ 渐变背景只设一次，不参与每帧刷新
+lv_obj_set_style_bg_grad(bg, &grad, 0);  // 静态生效
+// ❌ 不要用 lv_anim 驱动整个背景刷新
+```
+
+### 字体选择
+
+```c
+// ✅ 手表用预生成位图字体
+extern const lv_font_t lv_font_watch_24;  // lv_font_conv 生成，零运行时开销
+// ⚠️ Tiny TTF / FreeType 有首次渲染延迟，不适合高频更新的秒数字体
+```
+
+### 图片格式
+
+```c
+// ✅ RGB565 C 数组（手表指针/Logo 等小图）
+LV_IMAGE_DECLARE(img_hand_hour);  // 已经过 lv_img_conv 转换
+// ❌ 不要在 MCU 上用文件系统实时加载 PNG
+```
+
+### 表盘切换
+
+```c
+// ✅ Fade 动画控制在 200-300ms
+lv_anim_set_duration(&a, 250);
+// ❌ 不要超过 500ms，MCU 渲染能力有限
+```
+
+### 星点/粒子
+
+```c
+// ✅ 用 lv_timer 200ms 周期
+lv_timer_create(star_update_cb, 200, NULL);
+// ✅ 每次只更新亮度(opacity)，不重建对象
+lv_obj_set_style_bg_opa(star, new_brightness, 0);
+// ❌ 不要每帧创建/删除星点对象
+```
+
+## 12. 项目特定信息
 
 ### 屏幕和硬件
 - 分辨率: 1440×800

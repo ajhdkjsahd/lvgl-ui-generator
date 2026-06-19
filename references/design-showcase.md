@@ -117,6 +117,140 @@ lv_obj_set_style_border_color(chip, gray, 0);
 
 ---
 
+## 案例 2：工业控制台（Industrial Control Panel）
+
+### 视觉隐喻
+
+```
+工业 → 金属/机械 → 拉丝金属 + 硬朗直角 + 橙色告警
+  → 颜色: 深灰蓝底 + 金属灰卡片 + 橙色强调
+  → 隐喻: 工厂中枢控制台，每张卡片是一台设备的监控面板
+  → 情绪: 专业可靠、精确、硬朗
+```
+
+### 配色方案
+
+```
+铁灰底  #111318  — 背景（钢表面）
+金属灰  #1A1D23  — 卡片（拉丝金属面板）
+警示橙  #FF9800  — 主强调色（设备告警指示灯）
+冷白    #E0E0E0  — 主文字
+危险红  #F44336  — 严重告警
+安全绿  #4CAF50  — 正常状态
+```
+
+### 页面锚点
+
+| 页面 | 视觉锚点 | 设计手法 |
+|------|---------|---------|
+| **设备总览** | 8 张设备卡片 2×4 | 金属锥形渐变卡片 + 状态 LED glow + 设备图标 image_recolor |
+| **单台详情** | 大仪表盘 + 参数表 | 圆形 Arc 进度环 + Scale 刻度分区着色 + 数值滚动动画 |
+| **告警日志** | 时间轴列表 | 左侧红色时间轴 + 卡片 shadow + 告警级别色彩编码 |
+
+### 技术要点
+
+**金属拉丝卡片**:
+```c
+static const lv_color_t metal_colors[4] = {
+    LV_COLOR_MAKE(0x3A, 0x3D, 0x44), LV_COLOR_MAKE(0x2A, 0x2D, 0x34),
+    LV_COLOR_MAKE(0x1A, 0x1D, 0x23), LV_COLOR_MAKE(0x3A, 0x3D, 0x44),
+};
+static lv_grad_dsc_t grad;
+lv_grad_init_stops(&grad, metal_colors, NULL, NULL, 4);
+lv_grad_linear_init(&grad, lv_pct(0), lv_pct(0), lv_pct(100), lv_pct(100), LV_GRAD_EXTEND_REFLECT);
+lv_style_set_bg_grad(&style_card, &grad);
+lv_style_set_radius(&style_card, 4);  // 硬朗小圆角
+lv_style_set_shadow_width(&style_card, 8);
+lv_style_set_border_width(&style_card, 1);
+lv_style_set_border_color(&style_card, lv_color_hex(0x3A3D44));
+```
+
+**状态 LED glow**:
+```c
+lv_obj_set_style_shadow_color(led, status_color, 0);
+lv_obj_set_style_shadow_width(led, 15, 0);
+lv_obj_set_style_shadow_opa(led, LV_OPA_50, 0);
+lv_led_set_color(led, status_color);
+```
+
+---
+
+## 案例 3：智能家居中控（Smart Home Hub）
+
+### 视觉隐喻
+
+```
+家居 → 温暖/舒适 → 毛玻璃 + 大圆角 + 绿色自然感
+  → 颜色: 暖灰底 + 白卡片 + 木色配饰
+  → 隐喻: 现代家居中控平板，每张卡片是一个房间的控制面板
+  → 情绪: 温暖、放松、宜人
+```
+
+### 配色方案
+
+```
+暖灰底  #F5F0EB  — 背景（墙面）
+纯白    #FFFFFF  — 卡片
+鼠尾草绿 #6B8F71  — 主强调色（自然/植物）
+琥珀橙  #E85D04  — 告警/高温
+暖木色  #C49A6C  — 配饰/分隔
+```
+
+### 页面锚点
+
+| 页面 | 视觉锚点 | 设计手法 |
+|------|---------|---------|
+| **房间概览** | 环形房间选择器 + 设备列表 | translate_radial 圆形排列 + Blur 毛玻璃卡片 |
+| **灯光控制** | 大圆形滑块 | Arc 控件 + glow 光晕 + 颜色温度渐变指示器 |
+| **温控面板** | 大数值温度显示 | Number counter 动画 + Scale 温度计 + 红蓝渐变条 |
+
+### 技术要点
+
+**毛玻璃卡片**:
+```c
+lv_style_set_bg_color(&style, lv_color_hex(0xFFFFFF));
+lv_style_set_bg_opa(&style, LV_OPA_40);
+lv_style_set_radius(&style, 20);  // 大圆角 pill 风格
+lv_style_set_blur_backdrop(&style, true);
+lv_style_set_blur_radius(&style, 16);
+lv_style_set_border_width(&style, 1);
+lv_style_set_border_color(&style, lv_color_hex(0xFFFFFF));
+lv_style_set_border_opa(&style, LV_OPA_30);
+```
+
+---
+
+## 案例 4：医疗监护仪（Patient Monitor）
+
+### 视觉隐喻
+
+```
+医疗 → 洁净/可信 → 冷白 + 蓝绿主调 + 极简线条
+  → 颜色: 冷白底 + 浅灰卡片 + 蓝色 accent
+  → 隐喻: ICU 床边监护仪，波形图+大数值，信息密度高但井然有序
+  → 情绪: 冷静、专业、可靠
+```
+
+### 配色方案
+
+```
+冷白底  #F8FAFC  — 背景
+纯白    #FFFFFF  — 卡片
+医疗蓝  #2196F3  — 主强调（血压/脉搏）
+生命绿  #4CAF50  — 正常范围
+警告黄  #FFC107  — 临界值
+危急红  #E53935  — 超出范围
+```
+
+### 设计要点
+
+- 无阴影扁平风格（医疗环境需要清晰可读）
+- Chart 波形图 + 自定义绘制网格线
+- 大数值色彩编码（正常=蓝绿，告警=黄红闪烁）
+- 圆角最小（2-4px），强调精确和专业感
+
+---
+
 ## 设计模式速查
 
 ### 配色快速起步

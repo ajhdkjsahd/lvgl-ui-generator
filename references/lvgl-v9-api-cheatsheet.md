@@ -333,6 +333,38 @@ void lv_style_set_shadow_opa(lv_style_t * style, lv_opa_t value);
 void lv_style_set_transform_rotation(lv_style_t * style, int32_t value);  // 0.1度
 void lv_style_set_transform_scale_x(lv_style_t * style, int32_t value);   // 256=100%
 void lv_style_set_anim_duration(lv_style_t * style, uint32_t value);
+	void lv_style_set_shadow_spread(lv_style_t * style, int32_t value);
+	// Drop Shadow
+	void lv_style_set_drop_shadow_radius(lv_style_t * style, int32_t value);
+	void lv_style_set_drop_shadow_offset_x(lv_style_t * style, int32_t value);
+	void lv_style_set_drop_shadow_offset_y(lv_style_t * style, int32_t value);
+	void lv_style_set_drop_shadow_color(lv_style_t * style, lv_color_t value);
+	void lv_style_set_drop_shadow_opa(lv_style_t * style, lv_opa_t value);
+	// Blur
+	void lv_style_set_blur_radius(lv_style_t * style, int32_t value);
+	void lv_style_set_blur_backdrop(lv_style_t * style, bool value);
+	// Transform Advanced
+	void lv_style_set_transform_scale_y(lv_style_t * style, int32_t value);
+	void lv_style_set_transform_pivot_x(lv_style_t * style, int32_t value);
+	void lv_style_set_transform_pivot_y(lv_style_t * style, int32_t value);
+	void lv_style_set_transform_skew_x(lv_style_t * style, int32_t value);
+	void lv_style_set_transform_skew_y(lv_style_t * style, int32_t value);
+	void lv_style_set_translate_x(lv_style_t * style, int32_t value);
+	void lv_style_set_translate_y(lv_style_t * style, int32_t value);
+	void lv_style_set_translate_radial(lv_style_t * style, int32_t value);
+	// Blend Mode & Filter
+	void lv_style_set_blend_mode(lv_style_t * style, lv_blend_mode_t value);
+	void lv_style_set_recolor(lv_style_t * style, lv_color_t value);
+	void lv_style_set_recolor_opa(lv_style_t * style, lv_opa_t value);
+	void lv_style_set_bitmap_mask_src(lv_style_t * style, const void * value);
+	// Image Effects
+	void lv_style_set_image_recolor(lv_style_t * style, lv_color_t value);
+	void lv_style_set_image_recolor_opa(lv_style_t * style, lv_opa_t value);
+	// Transition
+	void lv_style_set_transition(lv_style_t * style, const lv_style_transition_dsc_t * value);
+	// Pad Row/Column (Flex spacing)
+	void lv_style_set_pad_row(lv_style_t * style, int32_t value);
+	void lv_style_set_pad_column(lv_style_t * style, int32_t value);
 
 // 将样式应用到对象
 void lv_obj_add_style(lv_obj_t * obj, lv_style_t * style, lv_style_selector_t selector);

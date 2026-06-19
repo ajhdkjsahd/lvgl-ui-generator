@@ -199,6 +199,27 @@ anim_staggered_fade(cards, 4, 250, 80);
 
 ---
 
+### 6. 动画时间线编排（Timeline）
+
+```c
+/* 创建时间线 */
+lv_anim_timeline_t * at = lv_anim_timeline_create();
+
+/* 添加多个动画，指定各自的时间偏移 */
+lv_anim_timeline_add(at, 0, &anim1);      // 0ms 开始
+lv_anim_timeline_add(at, 200, &anim2);    // 200ms 开始
+lv_anim_timeline_add(at, 400, &anim3);    // 400ms 开始
+lv_anim_timeline_add(at, 0, &anim_slider); // 进度条与整个时间线同步
+
+/* 控制 */
+lv_anim_timeline_start(at);
+lv_anim_timeline_pause(at);
+lv_anim_timeline_set_reverse(at, true);
+lv_anim_timeline_set_progress(at, progress);  // 0 ~ LV_ANIM_TIMELINE_PROGRESS_MAX
+```
+
+---
+
 ## 快速决策
 
 ```
