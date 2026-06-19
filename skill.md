@@ -167,4 +167,5 @@ ssh root@<板子IP> ./lvglsim
 | `references/component-reuse.md` | 组件复用三层模式：工厂函数 / 复合组件(ctx) / 自包含Widget(生命周期) |
 | `references/animation-guide.md` | 动画实用模式：淡入淡出/滑入/弹入/计数器/逐项入场 + 缓动选择 |
 | `references/preview-workflow.md` | PC 预览工作流：一键配置 SDL 环境，秒级预览 UI |
-| `references/common-errors.md` | 16 条实战错误速查（现象 → 根因 → 修复） |
+| `references/chart-guide.md` | lv_chart 数据图表模板：多图滚动 + 坐标轴单位 + 点击查看值 + 小数换算 |
+| `references/common-errors.md` | 实战错误速查（现象 → 根因 → 修复） |
