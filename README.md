@@ -1,86 +1,134 @@
 # LVGL UI Generator — Claude Code Skill
 
-LVGL v9 UI 代码生成 skill，覆盖**Web预览确认 → 视觉设计 → 布局 → C代码生成 → 构建集成**全流程。
+[![Version](https://img.shields.io/badge/version-2.0-blue)](https://github.com/ajhdkjsahd/lvgl-ui-generator)
+[![LVGL](https://img.shields.io/badge/LVGL-v9-2196F3)](https://lvgl.io/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-**核心创新**: 先用 HTML/CSS 做可视化预览（用户看到效果），确认满意后再翻译为 LVGL C 代码。
+**LVGL v9 高级 UI 设计 & 代码生成 Skill。设计师思维，不是代码生成器。**
 
-## 适用平台
+> 先用 HTML/CSS 做可视化预览 — 你看到效果，确认满意，再翻译为 LVGL C 代码。设计迭代 5 秒一轮，不需要编译烧录。
 
-- LVGL v9 所有平台：嵌入式 Linux (fbdev/evdev)、ESP32、PC 模拟器、STM32 等
-- ARM 交叉编译（已验证 GEC6818 / S5P6818）
-- 任意分辨率
+---
+
+## 为什么需要这个 Skill
+
+直接用 AI 生成 LVGL C 代码有致命问题：**你看不到画面。**
+
+AI 说"深空渐变背景 + 锥形渐变金属表圈 + 金色时针带 glow 光晕"——你脑补不出效果，只能编译烧录到真机才能看到，不满意就重来。一轮 5-10 分钟。
+
+**这个 Skill 解决了这个问题：**
+1. AI 生成 HTML 预览（CSS 模拟所有 LVGL 视觉效果）
+2. Playwright 浏览器截图 → 你直接看到
+3. 不满意？改 HTML → 5 秒后新截图
+4. 满意 → 一键翻译为 LVGL v9 C 代码
+
+---
+
+## 能设计什么
+
+| 能力 | 覆盖 |
+|------|------|
+| **视觉设计** | 光影/渐变/质感/变换/绘制 5 大系统，30+ 特效配方 |
+| **配色方案** | 8 种预设风格（深海/工业/家居/医疗/奢华/赛博朋克/自然/暗色） |
+| **圆屏手表** | 表盘 6 层结构、指针系统、刻度环、星点动画、手势交互 |
+| **毛玻璃** | `backdrop-filter: blur()` → `blur_backdrop` + `blur_radius` |
+| **金属拉丝** | `conic-gradient()` → `lv_grad_conical_init` + `LV_GRAD_EXTEND_REFLECT` |
+| **霓虹发光** | `box-shadow: 0 0 30px accent` → `shadow_color=accent` + `shadow_width=30` |
+| **3D 按钮** | 渐变 + 阴影 + translate 下移 → 按下时"沉下去" |
+| **深空暗角** | `radial-gradient()` → `lv_grad_radial_init` + vignette |
+| **脉冲呼吸** | `@keyframes` → `lv_anim_t` + `LV_ANIM_REPEAT_INFINITE` |
+| **星点闪烁** | JS 随机生成 → `lv_timer` 周期更新 opa |
+| **CSS → LVGL** | 完整翻译表：布局 18 项 + 视觉 22 项 + 颜色 + 字体 |
+
+---
+
+## 快速开始
+
+```bash
+# 1. 安装 Skill
+git clone https://github.com/ajhdkjsahd/lvgl-ui-generator.git \
+  ~/.agents/skills/lvgl-ui-generator
+
+# 2. 在 Claude Code 中说：
+#    "设计一个圆屏手表的深空极光表盘"
+#    → Skill 自动触发 → HTML 预览截图 → 你确认 → C 代码生成
+```
+
+---
+
+## 工作流
+
+```
+你描述需求
+  ↓
+AI 生成 HTML 预览（CSS 模拟目标设备形状/尺寸/所有视觉效果）
+  ↓
+Playwright 截图 → 你看到效果
+  ↓
+你反馈 → AI 改 HTML → 5 秒新截图（迭代到你满意）
+  ↓
+你确认："就这样！"
+  ↓
+AI 按 CSS→LVGL 翻译表生成 C 代码
+  ↓
+编译部署到真机
+```
+
+---
 
 ## 文件结构
 
 ```
 lvgl-ui-generator/
-├── SKILL.md                             ← 主文档（触发 → 分类 → 流程 → 自检）
-├── README.md                            ← 本文件
+├── skill.md                              ← 主文档（触发 → 分类 → 流程 → 自检）
+├── README.md                             ← 本文件
 └── references/
-    ├── lvgl-v9-api-cheatsheet.md        ← 控件 API + 完整样式属性(60+) + 事件/动画
-    ├── web-preview-workflow.md          ← 🆕 Web 预览：HTML模板(含圆屏手表) + CSS→LVGL翻译
-    ├── round-display-guide.md           ← 🆕 圆屏手表专项：表盘层级/指针/刻度/手势/性能
-    ├── visual-effects-catalog.md        ← 🆕 视觉特效目录：30+ 特效配方
-    ├── design-showcase.md               ← 🆕 4 个设计案例（深海/工业/家居/医疗）
-    ├── coding-conventions.md            ← 代码模板 + 命名约定 + v8→v9
-    ├── theme-system.md                  ← 主题系统 + 深浅色陷阱
-    ├── scrollbar-guide.md               ← 滚动条场景决策树 + 自检
-    ├── font-pipeline.md                 ← 字体方案 + FA6 合并字体
-    ├── flex-grid-guide.md               ← Flex vs Grid + 决策树 + 陷阱
-    ├── interaction-patterns.md          ← 事件 / 工厂函数 / Toast
-    ├── icon-display-guide.md            ← LV_SYMBOL 速查 + 图标方案
-    ├── screen-navigation.md             ← 栈/Tab/生命周期/动画
-    ├── multi-dpi-guide.md               ← lv_pct/lv_dpx/Grid FR/断点
-    ├── animation-guide.md               ← 动画模式 + Timeline + 缓动选择
-    ├── preview-workflow.md              ← PC 预览工作流
-    ├── chart-guide.md                   ← lv_chart 数据图表模板
-    └── common-errors.md                 ← 实战错误速查
+    ├── lvgl-v9-api-cheatsheet.md         ← 控件 API + 完整样式属性(60+) + 事件/动画
+    ├── web-preview-workflow.md           ← 🆕 Web 预览：HTML模板(含圆屏手表) + CSS→LVGL翻译表
+    ├── round-display-guide.md            ← 🆕 圆屏手表专项：表盘层级/指针/刻度/星点/手势/性能
+    ├── visual-effects-catalog.md         ← 🆕 视觉特效目录：30+ 特效配方(毛玻璃/金属/霓虹…)
+    ├── design-showcase.md                ← 🆕 4 个完整设计案例(深海/工业/家居/医疗)
+    ├── coding-conventions.md             ← 代码模板 + 命名约定 + v8→v9 + 性能约束
+    ├── theme-system.md                   ← 主题系统 + 深浅色切换 + 陷阱
+    ├── scrollbar-guide.md                ← 滚动条场景决策树 + NO_SCROLL 宏
+    ├── font-pipeline.md                  ← 5 种字体方案 + FA6 合并字体 + lv_font_conv
+    ├── flex-grid-guide.md                ← Flex vs Grid 决策树 + 陷阱
+    ├── interaction-patterns.md           ← snprintf + 事件回调 + Toast + ctx 管理
+    ├── icon-display-guide.md             ← LV_SYMBOL 速查 + FA6 图标方案
+    ├── screen-navigation.md              ← 屏幕栈 push/pop + TabView + 生命周期
+    ├── multi-dpi-guide.md                ← lv_dpx/lv_pct/Grid FR/分辨率断点
+    ├── animation-guide.md                ← 6 种动画模式 + Timeline + 缓动选择
+    ├── preview-workflow.md               ← SDL PC 预览：编译验证真机效果
+    ├── chart-guide.md                    ← lv_chart 数据图表模板(多图/点击查看值)
+    ├── component-reuse.md                ← L1/L2/L3 组件复用三层模式
+    └── common-errors.md                  ← 40+ 实战错误速查(现象→根因→修复)
 ```
+
+---
 
 ## 设计理念
 
 ### 三明治结构
 
 ```
-SKILL.md          (~180 行)  每次触发加载 — 程序性指令
-references/       (~3000 行) 按需加载 — 参考数据
+skill.md          (~180 行)  每次触发加载
+references/       (~4000 行) 按需加载
 ```
 
-### Token 效率
+SKILL.md 只包含**触发条件 + 核心原则 + 设计工具箱 + 关键决策 + 自检清单**。详细的 API、代码模板、错误速查放在 references/，由模型按需读取。每次触发仅消耗 ~5K tokens。
 
-| 指标 | 重构前 | 重构后 |
-|------|--------|--------|
-| SKILL.md 行数 | 565 | ~180 |
-| 每次触发 Token | ~15K | ~5K |
-| 参考文档命中 | 按需 ~2-3 个 | 按需 ~2-3 个 |
-| 视觉设计能力 | 6 行设计工具箱 | 完整视觉武器库 + 30+ 特效配方 |
+### 设计先行
 
-## 能解决什么问题
+这个 Skill 的核心原则是 **"设计先行，代码随后"**。每设计一个页面至少使用 3 种以上不同的视觉手法（光影+渐变+质感）——如果只用 bg_color + border + radius，说明设计不够。
 
-| 模块 | 覆盖 |
-|------|------|
-| **Web 预览** | 🆕 HTML/CSS 可视化预览 → 用户确认 → 翻译为 LVGL C 代码 |
-| **视觉设计** | 🆕 光影+渐变+质感+变换+绘制 5 大系统、8 种配色方案、4 个完整案例 |
-| **视觉特效** | 🆕 毛玻璃/金属拉丝/霓虹发光/3D 按钮/Vignette/极光渐变等 30+ 配方 |
-| **布局** | Flex vs Grid 选择指南 + 决策树 + translate_radial 圆形布局 |
-| **主题** | `lv_theme_default_init` 全局风格 + 深浅色切换 + 陷阱 |
-| **滚动条** | 场景分级决策树 + 根因分析 + 工厂函数 + 自检 |
-| **图标** | 62 LV_SYMBOL 速查 + FA6 合并字体（2000+ 图标可选） |
-| **中文** | 5 种字体方案对比 + lv_font_conv + FA6 合并 |
-| **导航** | 屏幕栈 push/pop + TabView + 生命周期 + 切换动画 |
-| **动画** | 6 种动画模式 + Timeline 编排 + 完整缓动库 |
-| **交互** | snprintf 动态文本 + 事件回调 + 工厂函数 + Toast |
-| **错误** | 16 条实战错误（现象 → 根因 → 修复） |
-| **图表** | lv_chart 多图滚动 + 坐标轴 + 渐变填充区域 |
+### 每页有性格
 
-## 安装
+不同页面有不同视觉锚点和手法组合。不套统一模板，每页独立设计。
 
-```bash
-git clone https://github.com/ajhdkjsahd/lvgl-ui-generator.git \
-  ~/.agents/skills/lvgl-ui-generator
-```
+---
 
-## 参考
+## 致谢
 
-- [LVGL 官方文档](https://docs.lvgl.io/)
-- LVGL 源码内置符号：`lvgl/include/lvgl/font/lv_symbol_def.h`
+- [LVGL](https://lvgl.io/) — 嵌入式 GUI 库
+- 社区标杆项目：ZSWatch、OV-Watch、HoloCubic、X-Knob 等
+- 实战经验来自 GEC6818 / S5P6818 ARM Linux 平台验证
