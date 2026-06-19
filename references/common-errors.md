@@ -29,3 +29,9 @@
 | **°C 摄氏度显示方框** 🔥 | `°` (U+00B0) 不在 ASCII `-r 0x20-0x7F` 范围内 | 加 `-r 0x0080-0x00FF`（Latin-1 Supplement） |
 | **AI 对话 ✓ 等符号缺失** | 装饰符号不在 CJK 范围内 | 加 `-r 0x2000-0x27BF`（General Punctuation + Dingbats） |
 | **全量汉字编译报错** | 字体超过 256KB 需开启 Large Font 支持 | `lv_conf.h` 设 `LV_FONT_FMT_TXT_LARGE 1` |
+| **输入框出现在所有页面** 🔥 | 输入行/键盘等 UI 控件创建到了 `lv_obj_get_screen(panel)` 屏幕根层上，而非当前页面的 `panel` 上 | 页面专属控件创建在 `panel` 上；需要跨层浮起时用 `lv_obj_set_parent` 临时移到 screen 层 |
+| **图表点击无反应** 🔥 | `LV_EVENT_CLICKED` 时 `lv_chart_get_pressed_point()` 已被 chart 在 RELEASED 时清空 | 用 `LV_EVENT_PRESSED` + 坐标手动计算点索引 |
+| **图表高亮圆点颜色不对** | 32-bit 色深 `lv_color_t` 含 `{blue,green,red}` 三字段，struct 初始化可能遗漏 | 显式设 `.red .green .blue`，独立 `lv_style_t` 防主题覆盖 |
+| **图表点击高亮 Y 位置偏 ~5px** | `lv_chart_get_point_pos_by_id` 返回坐标不够精确 | Y 坐标根据数据值在 Y 轴范围内线性插值计算 |
+| **`lv_chart_set_axis_tick` 编译报错** | 当前 LVGL 版本无此 API | 手动创建 Y/X 轴刻度 label |
+| **切换页面弹窗不消失** | LVGL v9 无 `LV_EVENT_HIDDEN`，TabView 子页面收不到隐藏事件 | 监听 TabView 的 `LV_EVENT_VALUE_CHANGED` |
