@@ -35,3 +35,5 @@
 | **图表点击高亮 Y 位置偏 ~5px** | `lv_chart_get_point_pos_by_id` 返回坐标不够精确 | Y 坐标根据数据值在 Y 轴范围内线性插值计算 |
 | **`lv_chart_set_axis_tick` 编译报错** | 当前 LVGL 版本无此 API | 手动创建 Y/X 轴刻度 label |
 | **切换页面弹窗不消失** | LVGL v9 无 `LV_EVENT_HIDDEN`，TabView 子页面收不到隐藏事件 | 监听 TabView 的 `LV_EVENT_VALUE_CHANGED` |
+| **固定布局页面无故出现滚动条** 🔥🔥 | 三层原因: ①子控件 `lv_pct(100)` + `flex_grow(1)` 同时设导致尺寸冲突 ②嵌套容器用 `lv_pct(100)` 叠加溢出 (如 bar 4px + body 100% = 104%) ③深层容器未关 SCROLLABLE | ①flex 子项用 `LV_SIZE_CONTENT` + `flex_grow(1)`，不写死 `lv_pct(100)` ②用 `NO_SCROLL` 宏套住**每一层**容器 ③父容器用 flex column 分隔固定/弹性区域 |
+| **`lv_pct(100)` + `flex_grow` 同用时布局异常** 🔥 | 两者冲突: pct 赢了导致子项撑破父容器，flex_grow 赢了导致子项尺寸为 0 | flex 子项要撑满剩余空间只设 `flex_grow`，高度/宽度用 `LV_SIZE_CONTENT` |

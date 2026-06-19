@@ -105,10 +105,46 @@ lv_obj_t * create_inline_row(lv_obj_t * parent, lv_coord_t w, lv_coord_t h)
 
 ---
 
+### 铁律宏
+
+```c
+/* 固定布局页面的每一层容器都必须调用 */
+#define NO_SCROLL(obj) \
+    lv_obj_set_scrollbar_mode((obj), LV_SCROLLBAR_MODE_OFF); \
+    lv_obj_clear_flag((obj), LV_OBJ_FLAG_SCROLLABLE)
+```
+
+### 百分比 + flex_grow 禁忌
+
+```c
+// ❌ 同时设 pct 和 flex_grow — 两者冲突，必出滚动条
+lv_obj_set_size(grid, lv_pct(100), lv_pct(100));
+lv_obj_set_flex_grow(grid, 1);
+
+// ✅ 只设 flex_grow，高度用 LV_SIZE_CONTENT
+lv_obj_set_size(grid, lv_pct(100), LV_SIZE_CONTENT);
+lv_obj_set_flex_grow(grid, 1);
+```
+
+### 嵌套容器高度叠加
+
+```c
+// ❌ bar(4px) + body(100%) = 104%，溢出！
+lv_obj_set_height(bar, 4);
+lv_obj_set_height(body, lv_pct(100));
+
+// ✅ 父用 flex column: bar(4px 不 grow) + body(flex_grow=1)
+lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
+lv_obj_set_size(bar, lv_pct(100), lv_dpx(4));   /* 不 grow */
+lv_obj_set_size(body, lv_pct(100), LV_SIZE_CONTENT);
+lv_obj_set_flex_grow(body, 1);                   /* 撑满剩余 */
+```
+
 ## 自检清单
 
-- [ ] 所有卡片内部 `lv_obj_set_scrollbar_mode(card, LV_SCROLLBAR_MODE_OFF)`
-- [ ] 所有 row 容器使用 `create_inline_row` 或手写 `LV_SCROLLBAR_MODE_OFF`
+- [ ] **所有**容器对象调用 `NO_SCROLL()` 宏（非仅卡片）
+- [ ] flex 子项**不**同时设 `lv_pct(100)` 和 `flex_grow`
+- [ ] 嵌套容器用 flex column/grow 分配合，不写死百分比叠加
 - [ ] 所有 `lv_label_create` 后跟 `lv_obj_set_width` + `LV_LABEL_LONG_CLIP`
 - [ ] 全局 grep `LV_LABEL_LONG_WRAP` 应**无匹配**（列表/日志等合理场景除外）
 - [ ] 可滚动的长列表/日志容器：仅最外层有 `LV_OBJ_FLAG_SCROLLABLE`，子元素全部禁滚
@@ -123,3 +159,5 @@ lv_obj_t * create_inline_row(lv_obj_t * parent, lv_coord_t w, lv_coord_t h)
 | 卡片下方出现滑条 | 卡片内多行 label 总高 > 卡片高 | 改用截断 / 减少内容 / 加大卡片 |
 | Tab 内容有滑条 | 内容总高 > Tab 高度 | 整页允许滚（合理），但**子容器**不能滚 |
 | 页面整体意外滚动 | 内容总高 > 480 - TabBar高度(≈48px) = 432px | 精确计算：pad + title + grid + gaps ≤ 432px |
+| **固定布局无故出现滚动条** 🔥🔥 | `lv_pct(100)` + `flex_grow` 同时设导致尺寸冲突；或嵌套 `lv_pct(100)` 叠加溢出 (bar 4px + body 100% = 104%) | flex 子项只设 `flex_grow`，高度用 `LV_SIZE_CONTENT`；每层容器加 `NO_SCROLL` 宏 |
+| 深层子容器溢出被截断而不是滚动 | 父容器设了 `SCROLLABLE` 但子容器没清该 flag，LVGL 选择滚动最近的 scrollable 祖先 | 所有容器显式设 `scrollbar_mode = OFF` + 清 `SCROLLABLE`，用一个宏统一处理 |
