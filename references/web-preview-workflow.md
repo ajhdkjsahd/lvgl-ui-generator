@@ -361,6 +361,292 @@ lv_color_make(R, G, B)   // RGB 分量 0-255
 }
 ```
 
+### 3.4 竖屏手机（390×844）
+
+```css
+.phone-frame {
+  width:390px; height:844px; overflow:hidden;
+  background: var(--bg);
+  display:flex; flex-direction:column;
+  border-radius: 40px;  /* 手机外壳圆角 */
+  box-shadow: 0 0 0 8px #1a1a2e, 0 0 60px rgba(0,0,0,0.5);
+}
+.phone-status-bar {
+  height:54px; padding: 12px 24px 0;
+  display:flex; justify-content:space-between; align-items:center;
+  font-size:14px; color: var(--text-secondary);
+}
+.phone-content {
+  flex:1; overflow:hidden;
+  display:flex; flex-direction:column;
+}
+.phone-tab-bar {
+  height:80px; display:flex; justify-content:space-around; align-items:center;
+  padding-bottom: 20px; /* safe area */
+  border-top: 1px solid var(--border);
+}
+.phone-tab {
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  font-size:10px; color: var(--text-secondary);
+}
+.phone-tab.active { color: var(--accent); }
+.phone-tab .icon { font-size:22px; }
+```
+
+### 3.5 方形屏（480×480）— 适用于智能音箱/中控
+
+```css
+.square-display {
+  width:480px; height:480px; overflow:hidden;
+  background: var(--bg);
+  border-radius: 24px;
+}
+```
+
+### 3.6 宽屏大板（1024×600）— 适用于车载/工业大屏
+
+```css
+.wide-display {
+  width:1024px; height:600px; overflow:hidden;
+  background: var(--bg);
+  display:grid;
+  grid-template-columns: 280px 1fr;  /* 左窄侧栏 + 主内容区 */
+  grid-template-rows: 1fr;
+}
+.wide-sidebar {
+  background: var(--bg-card);
+  padding: 16px;
+  display:flex; flex-direction:column; gap: 12px;
+  border-right: 1px solid var(--border);
+}
+.wide-main {
+  padding: 20px;
+  display:flex; flex-direction:column; gap: 16px;
+  overflow:hidden;
+}
+```
+
+---
+
+## 三-B、常用组件 HTML 模板
+
+以下模板可直接嵌入任何设备框架中使用。
+
+### B.1 导航栏 (Nav Bar)
+
+```html
+<div class="nav-bar">
+  <span class="nav-back">← 返回</span>
+  <span class="nav-title">页面标题</span>
+  <span class="nav-action">···</span>
+</div>
+<style>
+.nav-bar {
+  height:56px; display:flex; align-items:center; justify-content:space-between;
+  padding:0 16px; background:var(--bg-card);
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.nav-title { font-size:18px; font-weight:600; color:var(--text-primary); }
+.nav-back, .nav-action { font-size:15px; color:var(--accent); cursor:pointer; }
+</style>
+```
+
+### B.2 底部 Tab 栏
+
+```html
+<div class="tab-bar">
+  <div class="tab active">
+    <div class="tab-icon">🏠</div><div class="tab-label">首页</div>
+  </div>
+  <div class="tab">
+    <div class="tab-icon">📱</div><div class="tab-label">设备</div>
+  </div>
+  <div class="tab">
+    <div class="tab-icon">🎬</div><div class="tab-label">场景</div>
+  </div>
+  <div class="tab">
+    <div class="tab-icon">⚙</div><div class="tab-label">设置</div>
+  </div>
+</div>
+<style>
+.tab-bar {
+  height:64px; display:flex; justify-content:space-around; align-items:center;
+  background:var(--bg-card); border-top:1px solid var(--border);
+  padding-bottom:8px; flex-shrink:0;
+}
+.tab { display:flex; flex-direction:column; align-items:center; gap:2px; }
+.tab-icon { font-size:22px; }
+.tab-label { font-size:10px; color:var(--text-secondary); }
+.tab.active .tab-label { color:var(--accent); }
+</style>
+```
+
+### B.3 仪表盘传感器卡片
+
+```html
+<div class="sensor-card">
+  <div class="card-accent-bar"></div>
+  <div class="card-body">
+    <div class="card-header">🌡 温度</div>
+    <div class="card-value ok">26.5<span class="card-unit">度</span></div>
+    <div class="card-footer">正常范围 18-35°</div>
+  </div>
+</div>
+<style>
+.sensor-card {
+  background:var(--bg-card); border-radius:12px; overflow:hidden;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+  display:flex; flex-direction:column;
+}
+.card-accent-bar {
+  height:4px;
+  background: var(--accent);  /* 每张卡不同 accent */
+}
+.card-body {
+  padding:16px; display:flex; flex-direction:column; gap:8px; flex:1;
+}
+.card-header { font-size:14px; color:var(--text-secondary); }
+.card-value {
+  font-size:36px; font-weight:200; letter-spacing:2px;
+  /* 颜色编码：ok=白色, warning=var(--warning), danger=var(--danger) */
+}
+.card-value.ok { color: var(--text-primary); }
+.card-value.warning { color: var(--warning); }
+.card-value.danger { color: var(--danger); }
+.card-unit { font-size:16px; color:var(--text-secondary); margin-left:4px; }
+.card-footer { font-size:12px; color:var(--text-secondary); }
+</style>
+```
+
+### B.4 设置页开关行
+
+```html
+<div class="toggle-row">
+  <div class="toggle-info">
+    <div class="toggle-title">WiFi</div>
+    <div class="toggle-desc">已连接：Home_5G</div>
+  </div>
+  <div class="toggle-switch on"></div>
+</div>
+<style>
+.toggle-row {
+  height:56px; display:flex; align-items:center; justify-content:space-between;
+  padding:0 16px; background:var(--bg-card);
+  border-bottom:1px solid var(--border);
+}
+.toggle-info { display:flex; flex-direction:column; }
+.toggle-title { font-size:16px; color:var(--text-primary); }
+.toggle-desc { font-size:12px; color:var(--text-secondary); }
+.toggle-switch {
+  width:48px; height:28px; border-radius:14px;
+  background: #555; transition:background 0.2s;
+  position:relative;
+}
+.toggle-switch::after {
+  content:''; position:absolute; top:2px; left:2px;
+  width:24px; height:24px; border-radius:50%; background:white;
+  transition:left 0.2s;
+}
+.toggle-switch.on { background: var(--accent); }
+.toggle-switch.on::after { left:22px; }
+</style>
+```
+
+### B.5 列表项
+
+```html
+<div class="list-item">
+  <div class="item-icon">📱</div>
+  <div class="item-info">
+    <div class="item-title">客厅灯</div>
+    <div class="item-desc">已开启 · 亮度 80%</div>
+  </div>
+  <div class="item-status on">●</div>
+  <div class="item-arrow">›</div>
+</div>
+<style>
+.list-item {
+  height:64px; display:flex; align-items:center; gap:12px;
+  padding:0 16px; background:var(--bg-card);
+}
+.list-item:not(:last-child) { border-bottom:1px solid var(--border); }
+.item-icon { font-size:24px; width:36px; text-align:center; flex-shrink:0; }
+.item-info { flex:1; display:flex; flex-direction:column; }
+.item-title { font-size:16px; color:var(--text-primary); }
+.item-desc { font-size:12px; color:var(--text-secondary); }
+.item-status { font-size:10px; }
+.item-status.on { color: var(--success); }
+.item-status.off { color: var(--text-secondary); }
+.item-arrow { font-size:24px; color:var(--text-secondary); }
+</style>
+```
+
+### B.6 模式芯片组（替代 dropdown）
+
+```html
+<div class="chip-group">
+  <div class="chip active">自动</div>
+  <div class="chip">制冷</div>
+  <div class="chip">制热</div>
+  <div class="chip">送风</div>
+</div>
+<style>
+.chip-group {
+  display:flex; gap:8px; flex-wrap:wrap;
+}
+.chip {
+  padding:8px 20px; border-radius:20px;
+  font-size:14px; color:var(--text-secondary);
+  background:var(--bg-card); border:1px solid var(--border);
+  cursor:pointer; transition:all 0.2s;
+}
+.chip.active {
+  color:var(--bg-base); background:var(--accent); border-color:var(--accent);
+}
+</style>
+```
+
+### B.7 对话气泡（Chat Bubble）
+
+```html
+<div class="chat-list">
+  <div class="chat-msg ai">
+    <div class="chat-avatar">🤖</div>
+    <div class="chat-bubble">您好！我是智能助手，有什么可以帮您的？</div>
+  </div>
+  <div class="chat-msg user">
+    <div class="chat-bubble">今天的水温怎么样？</div>
+  </div>
+  <div class="chat-msg ai">
+    <div class="chat-avatar">🤖</div>
+    <div class="chat-bubble">当前水温 26.5°C，在正常范围内。溶解氧 6.8mg/L，水质良好。</div>
+  </div>
+</div>
+<style>
+.chat-list {
+  display:flex; flex-direction:column; gap:16px; padding:16px;
+  overflow-y:auto; flex:1;
+}
+.chat-msg { display:flex; gap:8px; max-width:85%; }
+.chat-msg.ai { align-self:flex-start; }
+.chat-msg.user { align-self:flex-end; flex-direction:row-reverse; }
+.chat-bubble {
+  padding:12px 16px; border-radius:16px;
+  font-size:14px; line-height:1.5;
+}
+.chat-msg.ai .chat-bubble {
+  background:var(--bg-card); color:var(--text-primary);
+  border-bottom-left-radius:4px;
+}
+.chat-msg.user .chat-bubble {
+  background:var(--accent); color:white;
+  border-bottom-right-radius:4px;
+}
+.chat-avatar { font-size:28px; flex-shrink:0; margin-top:4px; }
+</style>
+```
+
 ---
 
 ## 六、HTML 预览确认后（最后一步）

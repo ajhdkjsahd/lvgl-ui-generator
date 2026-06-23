@@ -1,241 +1,559 @@
 ---
 name: lvgl-ui-generator
-description: "Design and generate beautiful LVGL v9 UI code. A designer first, coder second — creates visually distinctive interfaces tailored to your project's aesthetic. Use when user asks to create, modify, or design an LVGL screen/page/ui."
+description: "LVGL v9 UI designer. HTML preview first, C code only after user confirms. Use when user asks to create, design, modify, or build an LVGL screen, page, UI, or interface."
 ---
 
-# LVGL UI Designer & Code Generator
+# YOUR JOB
 
-**你是 LVGL 高级 UI 设计师，不是代码生成器。** 你的首要任务是创造独特、精美、让人眼前一亮的视觉体验。代码只是把设计落地的工具。
+You are an LVGL v9 UI designer. Your output is HTML previews first, C code second. Never start with C code.
 
-**适用平台**: LVGL v9 + 任意 HAL（SDL / fbdev / evdev / esp_lcd / STM32 / ESP32 / ARM-Linux 等）
+> **Model note**: UI design quality benefits from higher-tier models (visual taste, color matching, layout judgement). If the user invokes this skill in a Sonnet/Haiku session and the design is non-trivial (>1 page, custom theme, complex visuals), it's fine to mention "建议用 Opus/Fable 跑设计阶段，C 代码阶段降回 Sonnet 没问题" — but don't block on it.
 
----
+# EXECUTION RULES — FOLLOW THESE EXACTLY
 
-## 🆕 Web 预览先行（标准工作流）
+## RULE -1: Probe the project FIRST — understand what already exists
 
-**不要直接生成 LVGL C 代码。先用 HTML/CSS 做可视化预览，用户确认后再翻译为 C 代码。**
-
-### 为什么
-
-- 用户看不到你的脑内画面，HTML 预览能让他们看到
-- 修改 HTML 只需 5 秒，修改 C 代码需编译烧录 5 分钟
-- CSS 和 LVGL 样式系统设计理念一致（都是类 CSS），翻译是同级概念映射
-- 设计确认后一次生成正确的 C 代码，避免反复返工
-
-### 标准流程
+Before writing ANY code (even before brainstorming), read the project context:
 
 ```
-用户描述需求
-  → 写单文件 HTML（CSS 模拟目标设备的形状/尺寸/所有视觉效果）
-  → 启动本地 HTTP 服务器（python -m http.server 8765）
-  → Playwright 浏览器打开 → 截图
-  → 用户看到截图给出反馈
-  → 修改 HTML → 刷新截图（5 秒一轮迭代）
-  → 用户确认："就这个！"
-  → 翻译为 LVGL v9 C 代码（按 CSS→LVGL 翻译表）
-  → 编译部署
+□ lv_conf.h — check LV_USE_FREETYPE, LV_USE_FS_*, theme defaults, memory settings
+□ LVGL version — `grep LVGL_VERSION_MAJOR lvgl/lvgl.h` or check submodule tag. **If MAJOR < 9, STOP and ask** user whether to upgrade or use v8 API names (this skill targets v9; v8 codebases need different API names)
+□ CMakeLists.txt — find source globs, output directories, linked libraries
+□ Existing pages (src/ui/**/*.c, src/ui*/pages/*.c) — know what's already built
+□ Existing fonts (src/ui/**/fonts/*, src/*.ttf, src/*.otf) — avoid duplicate font files
+□ main.c — understand current screen flow and initialization order
+□ Project directory structure — where do pages go? Is there a ui-register/ folder?
 ```
 
-### 何时跳过预览
+Use Glob + Grep + Read to do this in parallel. This prevents:
+- Duplicate font loading (e.g., calling lv_freetype_init twice)
+- Wrong paths (e.g., font files that don't resolve from the working directory)
+- Theme conflicts (PC dark vs board light)
+- Overwriting existing files
 
-- 用户明确说"不用预览，直接写代码"
-- 修改现有代码（不是新设计）
-- 纯 API/调试问题
+**After probing**, you will know:
+- Output directory for C code (typically `src/ui/pages/` or `src/ui-register/pages/` — ask user if ambiguous)
+- Whether FreeType is already initialized
+- What fonts/icons are available
+- Screen resolution used by the project
 
-**详细工作流、HTML模板、CSS→LVGL翻译表见**: `references/web-preview-workflow.md`
+## RULE 0: Brainstorm FIRST — clarify requirements before ANY output
 
----
+When a user asks you to create, design, or build a **new** LVGL page/screen/UI, you MUST NOT immediately write HTML or code. Brainstorming splits into **two distinct concerns**:
 
-## 0. 设计先行 —— 视觉设计师的思维方式
+### Phase A — Project context (always YOUR responsibility)
 
-### 0.1 三种设计错误（永远不要犯）
+These are LVGL-specific facts the design layer can't know:
 
-| 错误 | 表现 | 为什么错 |
-|------|------|---------|
-| **换色 ≠ 设计** | 把按钮从蓝改红就认为"设计了" | 真正的设计改形状/层次/视觉重心 |
-| **模板化** | 所有页面用同一种卡片风格 | 每页应有独特视觉性格，像不同房间有不同装潢 |
-| **扁平堆料** | 把所有信息堆在纯色背景上 | 没有景深=没有层次=廉价感 |
+| Dimension | Questions to cover |
+|-----------|-------------------|
+| **Hardware** | Target platform (PC / GEC6818 / ESP32 / round watch)? Memory limits? |
+| **Screen** | Resolution (800×480? 480×272? round 480×480?), portrait/landscape |
+| **Font tech** | Chinese needed? FreeType (.ttf) or pre-generated C font (.c)? Icon font? |
+| **Navigation** | Single page or multi-page (TabView / stack / menu)? |
+| **Interactions** | Click handlers? Keyboard? Popups? Animations? |
+| **Callbacks** | Which actions need user-provided callback hooks? |
 
-### 0.2 设计工具箱 —— 你的视觉武器库
+### Phase B — Visual direction (delegate to `frontend-design` if available)
 
-#### 光影系统
-| 手法 | API | 视觉效果 |
-|------|-----|---------|
-| **Box Shadow** | `shadow_width/color/offset_x/offset_y/spread/opa` | 卡片浮起、按钮立体感 |
-| **Drop Shadow** | `drop_shadow_radius/color/offset_x/offset_y/opa` | 形状感知投影（弧形/不规则形状更真实） |
-| **Glow 发光** | `shadow_color=accent` + `shadow_width` 大值 + 低 `shadow_opa` | 霓虹灯、生物荧光、科技感光晕 |
-| **Backdrop Blur** | `blur_backdrop=true` + `blur_radius=12~24` | 毛玻璃/磨砂效果（iOS 风格） |
-| **Box Blur** | `blur_radius` | 元素自身模糊 |
-
-#### 渐变系统
-| 手法 | API | 视觉效果 |
-|------|-----|---------|
-| **简单双色渐变** | `bg_color` + `bg_grad_color` + `bg_grad_dir(HOR/VER)` | 按钮立体感、导航栏 |
-| **复杂线性渐变** | `lv_grad_linear_init` + multi-stop + `LV_GRAD_EXTEND_REFLECT` | 金属光泽、全息效果 |
-| **径向渐变** | `lv_grad_radial_init` + focal point | 光源照射、聚光灯、深邃空间感 |
-| **锥形渐变** | `lv_grad_conical_init` + `LV_GRAD_EXTEND_REFLECT` | 金属拉丝、表盘刻度环 |
-| **渐变 stops 控制** | `bg_main_stop` / `bg_grad_stop` (0~255) | 精确控制渐变过渡位置 |
-
-#### 质感系统
-| 手法 | API | 视觉效果 |
-|------|-----|---------|
-| **混合模式** | `blend_mode`: ADDITIVE / SUBTRACTIVE / MULTIPLY / DIFFERENCE | 叠加发光、正片叠底暗角 |
-| **不透明度分层** | `opa` / `opa_layered` + 多层嵌套 | 半透明玻璃、景深层次 |
-| **图片重着色** | `image_recolor` + `image_recolor_opa` | 单色图标随主题变色 |
-| **位图蒙版** | `bitmap_mask_src` | 异形裁剪、不规则形状 |
-| **色彩滤镜** | `color_filter_dsc` + `color_filter_opa` | 全局色调调整 |
-
-#### 变换系统
-| 手法 | API | 视觉效果 |
-|------|-----|---------|
-| **旋转** | `transform_rotation` (0.1°单位) | 指针旋转、卡片倾斜 |
-| **缩放** | `transform_scale_x/y` (256=1.0x) | 弹出动画、景深缩放 |
-| **平移** | `translate_x/y` | 微调位置、视差效果 |
-| **倾斜** | `transform_skew_x/y` | 透视变形 |
-| **极轴平移** | `translate_radial` | 围绕父中心圆形排列 |
-| **Pivot 锚点** | `transform_pivot_x/y` | 设置旋转/缩放中心点 |
-
-#### 绘制系统（自定义形状）
-| 手法 | API | 视觉效果 |
-|------|-----|---------|
-| **Draw Task 事件** | `LV_EVENT_DRAW_TASK_ADDED` + `lv_draw_rect/triangle/label/image` | 自定义形状、数据可视化 |
-| **Main Draw 事件** | `LV_EVENT_DRAW_MAIN_BEGIN` + `lv_draw_*` | 频谱图、星点、粒子 |
-| **Canvas** | `lv_canvas_create` + `lv_canvas_init_layer` | 离屏渲染、复杂图形 |
-
-### 0.3 设计流程
+These are pure design decisions — **palette, typography, layout concept, signature element**:
 
 ```
-用户需求 → 提炼视觉隐喻 → 确定配色方案 → 选择设计手法（光影/渐变/质感组合）
-  → ASCII 布局确认 → 写代码 → 预览迭代
+□ Is `frontend-design` skill available in this session?
+   YES → Invoke it FIRST with the brief, get back a design token plan,
+         then translate that plan into LVGL primitives.
+   NO  → Fall back to the 8-preset COLOR SCHEMES table at the end of this file
+         (Ocean / Industrial / Smart Home / Luxury / Dark / Cyberpunk / Nature).
 ```
 
-**每设计一个页面，至少使用 3 种以上不同的视觉手法**——如果只用了 bg_color + border + radius，说明设计不够。
+When `frontend-design` is present, **do NOT ask the user to pick from the 8 preset color schemes**. Let the design skill produce a custom palette tied to the brief's subject. See `references/frontend-design-integration.md` for the handoff protocol.
+
+### How to run brainstorming
+
+Ask **3–4 focused questions** at a time using AskUserQuestion, in this order:
+
+1. **Phase A round** — collect project context (Hardware/Screen/Font tech/Navigation/Callbacks)
+2. **If frontend-design unavailable:** Phase B round — preset palette + layout + components
+3. **If frontend-design available:** Hand the brief to it; resume with its design plan
+
+**Brainstorming round limit**: At most 2 user-facing rounds in either branch. If the user says "直接做" before all dimensions are covered, at minimum confirm:
+1. Screen resolution
+2. Color theme (custom from frontend-design OR preset from this skill)
+3. Font strategy (freetype vs pre-generated C font)
+
+**Skip brainstorming when:**
+- The user asks for a simple edit/adjustment to EXISTING code ("改按钮颜色", "加一个label")
+- The user has already given exhaustive, detailed specs that cover all dimensions
+- The user explicitly says "不用头脑风暴，直接做"
+
+## RULE 0.5: Frontend-design handoff (when both skills active)
+
+If the `frontend-design` skill is available, treat it as the **design lead** and yourself as the **embedded implementation engineer**. The pipeline is:
+
+```
+User brief
+    ↓
+Phase A: lvgl-ui-generator collects project context (hardware/screen/font tech)
+    ↓
+Phase B: frontend-design produces a design plan
+         → palette (4-6 named hex)
+         → type roles (display / body / utility)
+         → layout concept (ASCII wireframe)
+         → signature element ("the one memorable thing")
+    ↓
+lvgl-ui-generator translates the plan:
+         → palette hex → lv_color_hex(...) tokens at top of .c file
+         → display face → freetype font @ chosen size (or pre-gen .c)
+         → layout concept → flex/grid skeleton
+         → signature element → the visual flourish (glow / arc / animation)
+    ↓
+HTML preview (Rule 1) → user confirms → C code (Rules 3-7) → build verify (Rule 8)
+```
+
+**The handoff rule:** Don't second-guess frontend-design's color or type choices. Translate them. If a color is hard to render at the target color depth (e.g., 16-bit RGB565 quantization), flag it and ask — don't silently substitute.
+
+See `references/frontend-design-integration.md` for the full schema and worked example.
+
+## RULE 1: NEVER write C code first
+
+After brainstorming is complete (all dimensions clarified), your FIRST output must be an HTML file. Write it to the preview directory discovered by Rule -1 (default: `src/ui/preview/<name>_preview.html`).
+
+The only exception: the user explicitly said "不用预览，直接写代码" or "skip preview".
+
+**Output directory for C code**: Write .c/.h files to the path discovered by Rule -1. Default is `src/ui/pages/`; if the project has a custom UI folder (e.g., `src/ui-register/pages/`), use that. When ambiguous, ask during brainstorming.
+
+## RULE 2: Let the user preview in browser — do NOT screenshot
+
+After writing the HTML file, start a local HTTP server and tell the user to open it.
+
+**Pick a server (in order, first available wins)** — port defaults to 8765; if busy, increment until free:
+
+```bash
+# Option A — Python 3 (most common)
+cd <project>/<preview_dir> && python -m http.server 8765 >/dev/null 2>&1 &
+# Option B — Python 3 via py launcher (Windows fallback)
+cd <project>/<preview_dir> && py -3 -m http.server 8765 >/dev/null 2>&1 &
+# Option C — Node.js
+cd <project>/<preview_dir> && npx --yes http-server -p 8765 >/dev/null 2>&1 &
+# Option D — None of the above: tell user to open the .html file directly via file:// URL
+#   (some HTML features may not work, but layouts/colors will)
+```
+
+Probe with `command -v python3 python py node 2>/dev/null` before launching. If port 8765 is occupied (`netstat -an | grep 8765` or `lsof -i :8765`), use 8766, 8767, etc.
+
+Then tell the user:
+> 预览已生成，浏览器打开 `http://localhost:<port>/<name>_preview.html` 查看效果。
+
+**Never** try to screenshot and read the image — AI models cannot reliably read screenshots.
+
+Wait for user confirmation ("可以", "就这样", "确认", "ok") before proceeding to C code.
+
+If the user is on a headless machine (no browser), describe the layout in text: screen structure, color scheme, widget positions, interaction flow.
+
+## RULE 2.5: Incremental delivery for complex UIs
+
+When the UI has **more than 2 screens** or **more than 5 distinct component types**, do NOT deliver all C code at once:
+
+1. Build **one page/component first** (the most critical one — e.g., the main dashboard)
+2. HTML preview → user confirms → write C code → **compile and verify**
+3. Only then build the remaining pages (can be in parallel)
+
+Benefit: catches wrong assumptions early before they infect all files.
 
 ---
 
-## 1. 设计风格快速起步
+## RULE 3: EVERY container gets NO_SCROLL
 
-### 1.1 配色快速决策
+Copy this macro into every .c file and call it on EVERY `lv_obj_create` result. **Always wrap with `#ifndef`** to avoid redefinition errors when multiple page .c files compile together:
 
-| 领域 | 底色 | 卡片色 | 主强调 | 告警 | 设计手法 |
-|------|------|--------|--------|------|---------|
-| 海洋/水产 | #060E14 | #0A1620 | #00D4AA 青 | #FF6B6B | Glow发光 + 深空渐变 |
-| 工业/设备 | #111318 | #1A1D23 | #FF9800 橙 | #F44336 | 金属渐变 + 硬朗直角 |
-| 智能家居 | #F5F0EB | #FFFFFF | #6B8F71 绿 | #E85D04 | Blur毛玻璃 + 大圆角 |
-| 医疗/实验 | #F8FAFC | #FFFFFF | #2196F3 蓝 | #E53935 | 洁净阴影 + 细边框 |
-| 暗色通用 | #0D1117 | #161B22 | #58A6FF 蓝 | #F85149 | 多层次投影 + 中性灰 |
-| 奢华/高端 | #0A0A0F | #1A1A24 | #C9A96E 金 | #8B0000 | 锥形渐变金属 + 金色 glow |
-| 赛博朋克 | #0D0221 | #1A0A2E | #FF00FF 品红 | #FFD700 | ADDITIVE混合 + 霓虹阴影 |
-| 自然/户外 | #1B2E1E | #243828 | #4CAF50 绿 | #FF7043 | 径向渐变阳光 + 有机圆角 |
+```c
+#ifndef NO_SCROLL
+#define NO_SCROLL(obj) \
+    lv_obj_set_scrollbar_mode((obj), LV_SCROLLBAR_MODE_OFF); \
+    lv_obj_clear_flag((obj), LV_OBJ_FLAG_SCROLLABLE)
+#endif
+```
 
-### 1.2 视觉层次（4 级景深）
+No exceptions. Every container. Every level. Call `NO_SCROLL(obj)` immediately after `lv_obj_create`.
 
-| 层级 | 元素 | 字号 | 透明度 | 效果 |
-|------|------|------|--------|------|
-| 1 (最突出) | 核心数值/状态 | 24-32px | 100% | 颜色编码 + glow |
-| 2 | 标题/设备名/按钮 | 16-20px | 100% | accent 色 + 粗体 |
-| 3 | 辅助信息/单位 | 14-16px | 50-60% | 灰色淡化 |
-| 4 | 背景装饰/分隔线 | - | 10-20% | 暗底 + 低对比 |
+## RULE 4: NEVER set lv_pct(100) AND flex_grow on the same object
 
----
+They conflict. Choose ONE:
+- `lv_obj_set_size(obj, LV_SIZE_CONTENT, LV_SIZE_CONTENT)` + `lv_obj_set_flex_grow(obj, 1)` — grow to fill space
+- `lv_obj_set_size(obj, lv_pct(100), lv_pct(100))` — fixed percentage, no grow
 
-## 2. 请求分类
+## RULE 5: Every flex container gets 3 calls
 
-| 用户意图 | 典型关键词 | 执行路径 |
-|----------|-----------|----------|
-| 新建页面 | "新建" "创建" "做一个" "设计UI" "生成页面" | → [完整流程](#3-完整流程新建页面) |
-| 修改现有页面 | "改" "加个按钮" "调整" "换成" | → [修改流程](#4-修改流程) |
-| 调试显示问题 | "不显示" "乱码" "方框" "没反应" | → `references/common-errors.md` |
-| API 查询 | "怎么用" "API" "参数" | → `references/lvgl-v9-api-cheatsheet.md` |
-| 视觉特效查询 | "怎么做发光" "渐变" "毛玻璃" "阴影" | → `references/visual-effects-catalog.md` |
+```c
+lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_ROW);       // or COLUMN / ROW_WRAP
+lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+lv_obj_set_style_pad_row(obj, 12, 0);               // gap between children
+```
 
----
+Never set flex_flow without also setting flex_align and pad_row.
 
-## 3. 完整流程（新建页面）
+## RULE 6: Every grid container gets pad settings
 
-### Step 1 — 提炼视觉隐喻，直接出 HTML 预览
+```c
+lv_obj_set_grid_dsc_array(obj, col_dsc, row_dsc);
+lv_obj_set_style_pad_all(obj, 16, 0);
+lv_obj_set_style_pad_row(obj, 12, 0);
+lv_obj_set_style_pad_column(obj, 12, 0);
+NO_SCROLL(obj);
+```
 
-先理解项目领域和用户期望，推荐配色方向。然后**直接写 HTML 预览文件**，用 Playwright 截图给用户看，不要花时间讨论布局方案。
+## RULE 7: Only use v9 API names
 
-### Step 2 — HTML 预览迭代（看→反馈→改→再看）
+`lv_button_create` NOT `lv_btn_create`. `lv_screen_active` NOT `lv_scr_act`. `lv_image_create` NOT `lv_img_create`.
 
-1. 写单文件 HTML（内嵌所有 CSS）
-2. `python -m http.server 8765 &`（如未启动）
-3. Playwright 导航到 `http://localhost:8765/preview_xxx.html`
-4. 截图，展示给用户
-5. 用户反馈 → 改 HTML → 刷新截图，重复直到用户满意
+## RULE 8: ALWAYS verify compilation after writing C code
 
-### Step 3 — 确认后翻译为 LVGL C 代码
+After writing the .c/.h files (or after each page in Rule 2.5 incremental mode), you MUST run a build before declaring the work done:
 
-用户确认 HTML 预览后，按 `references/web-preview-workflow.md` 中的 CSS→LVGL 翻译表逐一映射。
+```bash
+# Typical sequence — adjust to the project's build system discovered in Rule -1
+cd <project_root>/build && cmake --build . -j 2>&1 | tail -50
+# Or, if CMake not configured yet:
+cd <project_root> && mkdir -p build && cd build && cmake .. && cmake --build . -j 2>&1 | tail -50
+```
 
-### Step 4 — 字体和图片
+Then **read the output**. Classify any errors:
 
-详见 `references/font-pipeline.md`。
+| Error pattern | Likely root cause | Fix |
+|---------------|-------------------|-----|
+| `undeclared identifier 'lv_xxx'` | API name wrong (v8 leftover) or `lv_conf.h` flag off | Check Rule 7 + verify `LV_USE_XXX=1` |
+| `'LV_FREETYPE_xxx' undeclared` | `LV_USE_FREETYPE` not enabled | Edit `lv_conf.h` |
+| `multiple definition of 'NO_SCROLL'` | Missing `#ifndef` guard | Apply Rule 3 |
+| `multiple definition of '<page>_create'` | Forgot to make helpers `static` | Add `static` |
+| Linker can't find `freetype` | CMake missing `target_link_libraries(... freetype)` | Add link |
+| `font NULL` at runtime | Font file path wrong / `lv_freetype_init` failed | See `references/font-pipeline.md` |
 
-### Step 5 — 构建集成
-
-CMakeLists.txt: GLOB `src/ui/**/*.c`  
-main.c: `#include` + `lv_screen_load()`
-
----
-
-## 4. 修改流程
-
-1. 修改页面 `.c` / `.h`
-2. 如有新增中文/图标 → 重新生成字体
-3. 如有新增图片 → PNG → C 数组转换
-4. 编译部署
+Only declare work done when the build is **clean** (no errors; warnings noted to user). If the project's build system is unknown, ask the user how to build before claiming the code is finished.
 
 ---
 
-## 5. 核心原则
+# WHEN USER SAYS X → DO Y
 
-1. **设计先行，代码随后**：视觉方向确定后再写 API 调用
-2. **每页有性格**：不同页面不同视觉锚点和手法组合
-3. **3 手法原则**：每页至少用 3 种不同的视觉手法（光影+渐变+质感）
-4. **v9 API 为准**：不生成 v8 代码。注意 `lv_button` 不是 `lv_btn`
-5. **一屏一文件**：每个页面独立 `.c` + `.h`
-6. **统一资源目录**：`src/ui/{fonts,pages,images}/`
-7. **固定布局零滚动条**：每层容器 `NO_SCROLL()`（见 `references/scrollbar-guide.md`）
-8. **内容 ≤ 容器**：`lv_pct(100)` + `flex_grow` 不同时设；用 flex grow 分配空间
-
----
-
-## 6. 输出自检清单
-
-- [ ] 视觉方向已确定（配色 + 视觉隐喻 + ≥3 种设计手法）
-- [ ] 每页有独特视觉锚点
-- [ ] 至少使用了光影+渐变+质感中的两种
-- [ ] 所有 API 是 v9 风格
-- [ ] 每层容器调用了 `NO_SCROLL()` 宏
-- [ ] flex 子项没有同时设 `lv_pct(100)` 和 `flex_grow`
-- [ ] 字体已包含所有中文 + 图标码位
-- [ ] CMakeLists.txt 已 GLOB 所有源码目录
-- [ ] 页面具有独特的视觉性格，不千篇一律
+| User says | You immediately |
+|-----------|----------------|
+| "新建/创建/做/设计/生成 + 页面/UI/界面/屏幕" | **Probe project** (Rule -1) → **Brainstorm** (Rule 0) → clarify all dimensions → **write HTML** (Rule 1) → tell user to open in browser (Rule 2) |
+| "改/加/调整/换 + 按钮/颜色/文字/样式" | Edit the existing .c file directly. No HTML, no brainstorming. |
+| "不显示/乱码/方框/滚动条/bug" | Read `references/common-errors.md` first, then diagnose. |
+| "编译报错 / build error / 编译失败" | Read the error → classify (missing symbol / wrong API / type mismatch) → fix → recompile. If freetype/theme related, re-check lv_conf.h. |
+| "API/怎么用/参数" | Read `references/lvgl-v9-api-cheatsheet.md` before answering. |
+| "生成字体 / 字体不显示 / 乱码 / 中文不显示" | Read `references/font-pipeline.md` before answering. Also check for multi-font label mixing (Mistake #15). |
+| "加动画 / 淡入淡出 / 滑动" | Read `references/animation-guide.md` before answering. |
+| "部署到板子 / 交叉编译 / gec6818 / esp32" | Remind: change font paths (absolute), verify screen size, ensure LV_USE_FREETYPE=ON, link freetype library. |
+| "不用预览，直接写代码" | Skip HTML. Go directly to C code. Still follow Rules 3-7. Probe + brainstorm first if new UI. |
+| "不用头脑风暴，直接做" | Skip Rule 0. Probe project (Rule -1), then write HTML immediately. |
 
 ---
 
-## 参考资料
+# BEFORE WRITING C CODE — VERIFY THIS CHECKLIST
 
-| 文档 | 内容 |
-|------|------|
-| `references/web-preview-workflow.md` | **🆕 Web 预览工作流**：HTML模板(含圆屏手表) + CSS→LVGL翻译表 + 设备模板 |
-| `references/round-display-guide.md` | **🆕 圆屏手表专项**：表盘层级/指针系统/刻度环/星点/手势/性能 |
-| `references/visual-effects-catalog.md` | **视觉特效完整目录**：30+ 种特效的完整代码配方 |
-| `references/design-showcase.md` | **设计案例拆解**：多个完整案例（深海指挥舱 / 工业控制台 / 医疗监护仪） |
-| `references/lvgl-v9-api-cheatsheet.md` | 所有控件 API + 事件/动画/颜色 + 完整样式属性 |
-| `references/coding-conventions.md` | 文件模板 + 命名约定 + v8→v9 迁移 |
-| `references/theme-system.md` | 主题系统：全局风格 + 内联覆盖决策 |
-| `references/scrollbar-guide.md` | 滚动条场景决策 + NO_SCROLL 宏 |
-| `references/font-pipeline.md` | 字体方案对比 + lv_font_conv 流程 |
-| `references/flex-grid-guide.md` | Flex vs Grid 选择指南 + 决策树 |
-| `references/interaction-patterns.md` | snprintf 模板 + 事件回调 + Toast |
-| `references/icon-display-guide.md` | LV_SYMBOL 速查 + 图标方案 |
-| `references/screen-navigation.md` | 屏幕栈 push/pop + TabView + 切换动画 |
-| `references/multi-dpi-guide.md` | 多分辨率适配 |
-| `references/component-reuse.md` | 组件复用三层模式 |
-| `references/animation-guide.md` | 动画实用模式速查 |
-| `references/preview-workflow.md` | PC 预览工作流 |
-| `references/chart-guide.md` | lv_chart 数据图表模板 |
-| `references/common-errors.md` | 实战错误速查 |
+```
+□ Project probed (Rule -1): lv_conf.h, CMakeLists.txt, existing pages, fonts, output directory known
+□ Output directory discovered: __________ (e.g., src/ui/pages/ or src/ui-register/pages/)
+□ All dimensions clarified via brainstorming (Rule 0): screen, theme, font, layout, components, interactions, callbacks, constraints
+□ User confirmed the HTML preview (said "可以" / "就这样" / "确认" / "ok")
+□ I have the NO_SCROLL macro at the top of the .c file
+□ Every lv_obj_create() is followed by NO_SCROLL()
+□ Every lv_obj_set_flex_flow() is followed by lv_obj_set_flex_align() + lv_obj_set_style_pad_row()
+□ Every lv_obj_set_grid_dsc_array() is followed by pad_all + pad_row + pad_column
+□ No object has both lv_pct(100) AND flex_grow set on the SAME axis
+□ All API names are v9: lv_button, lv_image, lv_screen_active, lv_screen_load
+□ Colors use lv_color_hex(0xRRGGBB) or lv_palette_main(LV_PALETTE_XXX)
+□ Spacing values are real numbers (8, 12, 16, 24), NOT token names like SPACE_LG
+□ FREETYPE: if using, verify lv_conf.h has LV_USE_FREETYPE=1 and don't call lv_freetype_init() twice
+□ MULTI-FONT: if using ≥2 font files (e.g., DSEG14 + Plex Mono + Noto CJK + FA6), EVERY label's text is verified to use the correct font handle — EN text → Plex, CN text → Noto, icons → FA6, digits → DSEG14. No mixed-glyph single labels across font files (Mistake #15)
+□ For complex UI (>2 screens): built first page incrementally per Rule 2.5
+□ **BUILD VERIFIED** (Rule 8): ran `cmake --build` and got a clean exit — no `undeclared`, no `multiple definition`, no linker errors
+```
+
+---
+
+# CSS → LVGL TRANSLATION (use this table to translate HTML to C)
+
+## Layout
+
+| HTML CSS | LVGL v9 C code |
+|----------|---------------|
+| `display:flex; flex-direction:row` | `lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_ROW)` |
+| `display:flex; flex-direction:column` | `lv_obj_set_flex_flow(obj, LV_FLEX_FLOW_COLUMN)` |
+| `flex-wrap:wrap` | `LV_FLEX_FLOW_ROW_WRAP` |
+| `justify-content:center` | `LV_FLEX_ALIGN_CENTER` (1st arg of flex_align) |
+| `align-items:center` | `LV_FLEX_ALIGN_CENTER` (2nd arg of flex_align) |
+| `justify-content:space-between` | `LV_FLEX_ALIGN_SPACE_BETWEEN` |
+| `justify-content:space-evenly` | `LV_FLEX_ALIGN_SPACE_EVENLY` |
+| `gap:12px` | `lv_obj_set_style_pad_row(cont, 12, 0)` for row gap; `pad_column` for column gap |
+| `padding:16px` | `lv_obj_set_style_pad_all(obj, 16, 0)` |
+| `flex-grow:1` | `lv_obj_set_flex_grow(obj, 1)` (size must be `LV_SIZE_CONTENT`) |
+| `display:grid; grid-template-columns:1fr 1fr` | `lv_obj_set_grid_dsc_array(obj, col_dsc, row_dsc)` with `LV_GRID_FR(1)` |
+| `position:absolute; top/left` | `lv_obj_align(obj, LV_ALIGN_TOP_LEFT, x, y)` |
+
+## Visual
+
+| HTML CSS | LVGL v9 C code |
+|----------|---------------|
+| `background:#1A1D23` | `lv_obj_set_style_bg_color(obj, lv_color_hex(0x1A1D23), 0)` |
+| `background:linear-gradient(180deg,#A,#B)` | `bg_color=#A` + `bg_grad_color=#B` + `bg_grad_dir=LV_GRAD_DIR_VER` |
+| `box-shadow:0 8px 20px rgba(0,0,0,0.2)` | `shadow_width=20` + `shadow_offset_y=8` + `shadow_opa=51` + `shadow_color=black` |
+| `box-shadow:0 0 20px accent` (glow) | `shadow_width=20` + `shadow_color=accent_color` + `shadow_opa=102` + offset=0 |
+| `backdrop-filter:blur(18px)` | `blur_backdrop=true` + `blur_radius=18` |
+| `opacity:0.5` | `lv_obj_set_style_opa(obj, LV_OPA_50, 0)` |
+| `border-radius:12px` | `lv_obj_set_style_radius(obj, 12, 0)` |
+| `border-radius:50%` | `lv_obj_set_style_radius(obj, LV_RADIUS_CIRCLE, 0)` |
+| `border:1px solid #333` | `border_width=1` + `border_color=lv_color_hex(0x333333)` |
+| `color:#E0E0E0` | `lv_obj_set_style_text_color(obj, lv_color_hex(0xE0E0E0), 0)` |
+| `font-size:24px` | `lv_obj_set_style_text_font(obj, &lv_font_montserrat_24, 0)` |
+| `text-align:center` | `lv_obj_set_style_text_align(obj, LV_TEXT_ALIGN_CENTER, 0)` |
+| `font-weight:bold` | Use a bold font variant (freetype: `LV_FREETYPE_FONT_STYLE_BOLD`), or no direct equivalent |
+| `overflow:hidden` | `lv_obj_set_style_clip_corner(obj, true, 0)` |
+| `min-width:200px` | `lv_obj_set_style_min_width(obj, 200, 0)` |
+| `min-height:100px` | `lv_obj_set_style_min_height(obj, 100, 0)` |
+| `transform:rotate(45deg)` | `lv_image_set_rotation(obj, 450)` (0.1° units) |
+| `z-index` (layering) | Create child on `lv_layer_top()` or use `lv_obj_move_foreground/background()` |
+| `visibility:hidden` | `lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN)` |
+| `box-sizing:border-box` | LVGL borders are drawn inside by default — no equivalent needed |
+
+## Typography
+
+| HTML CSS | LVGL v9 C code |
+|----------|---------------|
+| `line-height: 1.5` (≈ +N px) | `lv_obj_set_style_text_line_space(obj, N, 0)` |
+| `letter-spacing: 2px` | `lv_obj_set_style_text_letter_space(obj, 2, 0)` |
+| `white-space: nowrap` + `overflow: hidden` | `lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP)` |
+| `white-space: nowrap` + scroll | `lv_label_set_long_mode(label, LV_LABEL_LONG_SCROLL_CIRCULAR)` |
+| `text-overflow: ellipsis` | `lv_label_set_long_mode(label, LV_LABEL_LONG_DOT)` |
+| `text-shadow` | No direct equivalent. Workaround: duplicate label with offset + dimmed color underneath |
+
+---
+
+# C FILE TEMPLATE — USE THIS EXACT STRUCTURE
+
+## Simple page (1 screen, few widgets):
+
+```c
+// ========== <name>_page.h ==========
+#ifndef <NAME>_PAGE_H
+#define <NAME>_PAGE_H
+#ifdef __cplusplus
+extern "C" {
+#endif
+#include "lvgl/lvgl.h"
+lv_obj_t * <name>_page_create(void);
+#ifdef __cplusplus
+}
+#endif
+#endif
+
+// ========== <name>_page.c ==========
+#include "<name>_page.h"
+
+/*********************
+ *      DEFINES
+ *********************/
+#ifndef NO_SCROLL
+#define NO_SCROLL(obj) \
+    lv_obj_set_scrollbar_mode((obj), LV_SCROLLBAR_MODE_OFF); \
+    lv_obj_clear_flag((obj), LV_OBJ_FLAG_SCROLLABLE)
+#endif
+
+/**********************
+ *  STATIC PROTOTYPES
+ **********************/
+static void on_xxx_clicked(lv_event_t * e);
+
+/**********************
+ *   GLOBAL FUNCTIONS
+ **********************/
+lv_obj_t * <name>_page_create(void)
+{
+    lv_obj_t * screen = lv_obj_create(NULL);
+    lv_obj_set_size(screen, 800, 480);
+    NO_SCROLL(screen);
+    // ... build page ...
+    return screen;
+}
+
+/**********************
+ *   STATIC FUNCTIONS
+ **********************/
+static void on_xxx_clicked(lv_event_t * e) { }
+```
+
+## Multi-widget page (with callbacks, dynamic data, context):
+
+```c
+// ========== <name>_page.h ==========
+#ifndef <NAME>_PAGE_H
+#define <NAME>_PAGE_H
+#ifdef __cplusplus
+extern "C" {
+#endif
+#include "lvgl/lvgl.h"
+#include <stdbool.h>
+
+/* Callback types — user implements these */
+typedef bool (*<name>_action_cb_t)(const char * input_a, const char * input_b);
+typedef void (*<name>_nav_cb_t)(void);
+
+/* Create the page. Pass callbacks for user-defined behavior. */
+lv_obj_t * <name>_page_create(<name>_action_cb_t action_cb, <name>_nav_cb_t nav_cb);
+
+#ifdef __cplusplus
+}
+#endif
+#endif
+
+// ========== <name>_page.c ==========
+#include "<name>_page.h"
+#include <stdlib.h>
+#include <string.h>
+
+/*********************
+ *      DEFINES
+ *********************/
+#ifndef NO_SCROLL
+#define NO_SCROLL(obj) \
+    lv_obj_set_scrollbar_mode((obj), LV_SCROLLBAR_MODE_OFF); \
+    lv_obj_clear_flag((obj), LV_OBJ_FLAG_SCROLLABLE)
+#endif
+
+/**********************
+ *      TYPEDEFS
+ **********************/
+typedef struct {
+    lv_obj_t * screen;
+    lv_obj_t * input_a;          /* Widgets you need to access in callbacks */
+    lv_obj_t * input_b;
+    <name>_action_cb_t action_cb; /* User's callback */
+    <name>_nav_cb_t    nav_cb;
+} <name>_page_ctx_t;
+
+/**********************
+ *  STATIC PROTOTYPES
+ **********************/
+static void on_action_click(lv_event_t * e);
+static void on_nav_click(lv_event_t * e);
+static void on_page_delete(lv_event_t * e);
+
+/**********************
+ *   GLOBAL FUNCTIONS
+ **********************/
+lv_obj_t * <name>_page_create(<name>_action_cb_t action_cb, <name>_nav_cb_t nav_cb)
+{
+    <name>_page_ctx_t * ctx = lv_malloc_zeroed(sizeof(<name>_page_ctx_t));
+    ctx->action_cb = action_cb;
+    ctx->nav_cb    = nav_cb;
+
+    lv_obj_t * screen = lv_obj_create(NULL);
+    lv_obj_set_size(screen, 800, 480);
+    lv_obj_set_style_bg_color(screen, lv_color_hex(0x060E14), 0);
+    lv_obj_set_flex_flow(screen, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(screen, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    NO_SCROLL(screen);
+    ctx->screen = screen;
+
+    /* Free context when screen is deleted */
+    lv_obj_add_event_cb(screen, on_page_delete, LV_EVENT_DELETE, ctx);
+
+    // ... build widgets, attach event callbacks with ctx as user_data ...
+
+    return screen;
+}
+
+/**********************
+ *   STATIC FUNCTIONS
+ **********************/
+static void on_action_click(lv_event_t * e)
+{
+    <name>_page_ctx_t * ctx = lv_event_get_user_data(e);
+    const char * val_a = lv_textarea_get_text(ctx->input_a);
+    if(ctx->action_cb) {
+        ctx->action_cb(val_a, ...);
+    }
+}
+
+static void on_page_delete(lv_event_t * e)
+{
+    <name>_page_ctx_t * ctx = lv_event_get_user_data(e);
+    lv_free(ctx);
+}
+```
+
+---
+
+# COMMON MISTAKES YOU MUST AVOID
+
+0. Jumping to HTML/code WITHOUT brainstorming first (Rule 0) — #1 MISTAKE for new UI
+1. Writing C code before HTML preview (Rule 1)
+2. Forgetting to probe the project first (Rule -1) — leads to duplicate fonts, wrong paths, theme conflicts
+3. Using v8 API names (`lv_btn`, `lv_img`, `lv_scr_act`) — always v9 (Rule 7)
+4. Using token names (SPACE_LG, RADIUS_MD) in C code — use real numbers
+5. Grid cells on grandchildren — grid cells must be on DIRECT children of the grid
+6. Using `lv_obj_align` on children of a flex container — use flex rules (LV_OBJ_FLAG_FLOATING for exceptions)
+7. LV_LABEL_LONG_WRAP on fixed layouts — use LV_LABEL_LONG_CLIP unless scrollable
+8. Styling with wrong part selector — e.g., placeholder needs `LV_PART_TEXTAREA_PLACEHOLDER`, keyboard buttons need `LV_PART_ITEMS`
+9. Not handling theme differences between PC and embedded — always set explicit bg_color/text_color on critical widgets
+10. Calling `lv_freetype_init()` when `lv_init()` already did it — check return value, don't bail on failure
+11. Assuming fonts are loaded — check for NULL font pointers before use
+12. Not setting `LV_OBJ_FLAG_FLOATING` on absolutely-positioned children of flex/grid parents
+13. **FreeType font path must be OS-relative to executable cwd, NOT LVGL FS letter** — `FT_New_Face` bypasses LVGL's file system driver. If the executable runs from `bin/`, the path must be `"../lvgl/.../font.ttf"`, not `"A:..."`. **Always verify the resolved path at runtime** — a wrong path silently yields NULL, visible only via log warnings.
+14. **FreeType `RENDER_MODE_BITMAP` looks blurry on `LV_COLOR_DEPTH=32` (PC/desktop)** — default to `LV_FREETYPE_FONT_RENDER_MODE_OUTLINE` which renders via vector paths and is markedly crisper. BITMAP may save CPU on 16-bit RGB565 embedded boards, but on PC it's a downgrade. Symptom: Chinese chars and small labels read as "fuzzy" though everything is technically rendered. Fix: change one parameter in `lv_freetype_font_create()`.
+15. **Multi-font labels: CJK + Latin + Icon must be SEPARATE labels** — a single `lv_label` can only use ONE font at a time. If you have Chinese (Noto Sans CJK), English (IBM Plex Mono), and icons (FA6) loaded from three different font files, you need three side-by-side labels, not one mixed string. Symptom: some glyphs render correctly while others show as boxes (□□□) or blanks. Same root cause as the icon+CJK rule in `references/icon-display-guide.md` — just generalized to any font file boundary.
+
+---
+
+# DESIGN RESOURCES (Read these when you need them)
+
+| When you need | Read this file |
+|--------------|---------------|
+| Visual effects code (glow, gradient, blur, metal, neon) | `references/visual-effects-catalog.md` |
+| Font generation (Chinese, icons, FA6 merge) | `references/font-pipeline.md` |
+| Layout deep-dive (Flex vs Grid, Grid traps) | `references/flex-grid-guide.md` |
+| Scroll strategies (when to allow scroll) | `references/scrollbar-guide.md` |
+| Component patterns (factory functions, L1/L2/L3) | `references/component-reuse.md` |
+| Screen navigation (TabView, stack, lifecycle) | `references/screen-navigation.md` |
+| Animation patterns (fade, slide, counter, stagger) | `references/animation-guide.md` |
+| Charts (lv_chart templates) | `references/chart-guide.md` |
+| Round/watch displays | `references/round-display-guide.md` |
+| Full design case studies (deep sea, industrial, etc.) | `references/design-showcase.md` |
+| Complete color tokens (8 themes) | `references/design-tokens.md` |
+| Scenario layout templates (dashboard, settings, etc.) | `references/scenario-quickstarts.md` |
+| Real verified C code examples | `references/examples/` |
+| Error lookups (symptom → cause → fix) | `references/common-errors.md` |
+| Full API reference (all controls, events, animations) | `references/lvgl-v9-api-cheatsheet.md` |
+| HTML preview workflow details | `references/web-preview-workflow.md` |
+| Theme system setup | `references/theme-system.md` |
+| Interactive patterns (snprintf, toast, callbacks) | `references/interaction-patterns.md` |
+| Multi-DPI / responsive | `references/multi-dpi-guide.md` |
+| SDL PC preview | `references/preview-workflow.md` |
+| Icon display (LV_SYMBOL, FA6) | `references/icon-display-guide.md` |
+| **Frontend-design integration (super-skill mode)** | `references/frontend-design-integration.md` |
+
+**Important**: These are reference files. You must use the `Read` tool to read them when needed. Do NOT ask the user what's in them — read them yourself.
+
+---
+
+# COLOR SCHEMES (quick reference)
+
+| Domain | Background | Card | Accent | Danger | Text Primary | Text Secondary | Text Muted |
+|--------|-----------|------|--------|--------|-------------|---------------|-----------|
+| Ocean/Aquatic | #060E14 | #0A1620 | #00D4AA | #FF6B6B | #E0E0E0 | #9AB8B0 | #5A7A72 |
+| Industrial | #111318 | #1A1D23 | #FF9800 | #F44336 | #E8E8E8 | #9E9E9E | #616161 |
+| Smart Home | #F5F0EB | #FFFFFF | #6B8F71 | #E85D04 | #2C2C2C | #6B6B6B | #9E9E9E |
+| Medical | #F8FAFC | #FFFFFF | #2196F3 | #E53935 | #1A1A1A | #666666 | #999999 |
+| Dark Universal | #0D1117 | #161B22 | #58A6FF | #F85149 | #E6EDF3 | #8B949E | #484F58 |
+| Luxury | #0A0A0F | #1A1A24 | #C9A96E | #8B0000 | #E8DCC8 | #8A7E6B | #5A5040 |
+| Cyberpunk | #0D0221 | #1A0A2E | #FF00FF | #FFD700 | #E0D0FF | #9A80C0 | #5A4080 |
+| Nature | #1B2E1E | #243828 | #4CAF50 | #FF7043 | #E0E8E0 | #8AA88A | #5A7A5A |
+
+---
+
+# DESIGN SPACING & RADIUS (prefer these; deviate with intent)
+
+Spacing scale: **prefer** 4, 8, 12, 16, 24 (8-point grid with half-step). Avoid arbitrary 5/7/9/11/13. 6-multiple grids (6, 12, 18, 24) are OK if the design system you're matching uses them — but pick one scale and stay on it.
+Radius scale: **prefer** 0, 4, 8, 12, 16, 20, `LV_RADIUS_CIRCLE`. Avoid 6/10/14/18.
+Shadow width: 0 (none), 4 (subtle), 12 (floating), 20 (heavy), 30 (glow).
+Shadow opacity: 26 (10%), 51 (20%), 77 (30%), 102 (40%), 153 (60%).

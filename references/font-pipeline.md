@@ -235,3 +235,60 @@ add_executable(lvglsim src/main.c ${LV_PAGE_SRC} ${LV_FONT_SRC})
 | cjk 字体格式 0 无 glyph | 用 `-r 0x20-0x7F` 代替 `--symbols` | `-r` 和 `--symbols` **必须同时使用** |
 | charmap 字体总大小 0 | 只改了 chars.txt 没重新生成 .c | 必须先 `lv_font_conv` 再 cmake |
 | 掉电符（°C）显示方框 | ° 不在 chars.txt 里 | 用中文「度」代替，或把 ° 加入 chars.txt |
+
+---
+
+## FreeType 路径陷阱（实战必踩）
+
+`lv_freetype_font_create(path, ...)` 的 `path` 走的是 **OS 路径**，由 FreeType 的 `FT_New_Face` 解析 —— **不**经过 LVGL 文件系统驱动。
+
+| 写法 | 是否走 LVGL FS | 适用 API |
+|------|----------------|----------|
+| `"A:../src/foo.bmp"` | ✅ 是（`A:` 是 `LV_FS_STDIO_LETTER`） | `lv_image_set_src()`、`lv_fs_open()` |
+| `"../lvgl/foo.ttf"` | ❌ 否（OS 直接 fopen） | `lv_freetype_font_create()`、`lv_tiny_ttf_create_file()` |
+
+**典型现场**：项目执行文件在 `<root>/bin/main.exe`，cwd=`bin`，字体在 `<root>/lvgl/examples/.../font.ttf`：
+
+```c
+/* ❌ 错的 — 把 LVGL FS 协议混进 FT */
+lv_freetype_font_create("A:../lvgl/examples/libs/freetype/Lato-Regular.ttf", ...);
+/* 报错: FT_New_Face error(0x1) — FT_Err_Cannot_Open_Resource */
+
+/* ❌ 错的 — 相对 cwd 但层级不对 */
+lv_freetype_font_create("./lvgl/examples/libs/freetype/Lato-Regular.ttf", ...);
+/* 同样 FT_New_Face error(0x1) */
+
+/* ✅ 对的 — cwd=bin，所以要 ../lvgl/... */
+lv_freetype_font_create("../lvgl/examples/libs/freetype/Lato-Regular.ttf", ...);
+```
+
+**调试套路**：
+1. 在调用前 `LV_LOG_USER("font path: %s, cwd:", path);` 并 `system("pwd")`（POSIX）或 `_getcwd()`（Windows）
+2. 让 shell 跑 `ls <path>` 验证文件真实存在
+3. 收到 `FT_New_Face error(0x1)` 就 100% 是路径问题，不是字体格式问题
+
+**部署到板子时**：板子 cwd 通常是 `/`，字体路径要改为绝对路径如 `"/usr/share/fonts/your.ttf"` 或部署目录下的相对路径。
+
+---
+
+## FreeType 渲染模式选择（清晰度关键）
+
+`lv_freetype_font_create(path, render_mode, size, style)` 第二个参数有两种选项：
+
+| 模式 | 适用场景 | 渲染质量 | CPU 开销 |
+|------|---------|---------|---------|
+| `LV_FREETYPE_FONT_RENDER_MODE_BITMAP` | 16 位 RGB565 嵌入式板子 | 较糊，特别是中文 | 低 |
+| `LV_FREETYPE_FONT_RENDER_MODE_OUTLINE` | PC / 32 位色深 / 任何要求清晰的场景 | **明显锐利** | 中（vector path 实时栅格化） |
+
+**经验法则**：
+- `LV_COLOR_DEPTH == 32`（PC SDL / 桌面）→ **必须用 OUTLINE**
+- `LV_COLOR_DEPTH == 16`（RGB565 嵌入式）→ 先试 OUTLINE；如帧率不够再降回 BITMAP
+- 中文字体（楷体/宋体/微软雅黑）对模式更敏感，BITMAP 下"软糊"感很明显
+- 英文字体（Lato / Plex Mono）BITMAP 下勉强能看，但 OUTLINE 仍更好
+
+**症状识别**：
+- 中文笔画"软"、看着像 5px 的字硬被放大成 12px → BITMAP 锯齿过度
+- 字号小（< 14px）时尤其明显
+- HTML 预览里没问题，跑真机才看到糊 → 100% 是 render mode 问题
+
+**修复**：把所有 `lv_freetype_font_create(..., LV_FREETYPE_FONT_RENDER_MODE_BITMAP, ...)` 改为 `... RENDER_MODE_OUTLINE, ...`，重新编译即可。一行参数的变化。
