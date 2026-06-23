@@ -97,11 +97,6 @@ cmake --build 编译验证
 lvgl-ui-generator/
 ├── SKILL.md                                ← 主文档（强制关卡 + 场景匹配 + 完整工作流）
 ├── README.md                               ← 本文件
-├── preview/
-│   └── gallery/                            ← 🆕 截图收藏（AI 设计前的质量基准）
-│       ├── README.md
-│       ├── demo.png
-│       └── weather.png
 └── references/
     ├── design-tokens.md                    ← 🆕 Design Token 系统（间距/圆角/阴影/8套配色 token）
     ├── scenario-quickstarts.md             ← 🆕 7种场景快速入门（布局策略+代码模板+陷阱）
